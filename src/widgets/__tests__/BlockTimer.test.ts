@@ -50,14 +50,15 @@ describe('BlockTimerWidget', () => {
         expect(render(widget, item, { usageData: {} })).toBe('Block: 3hr 45m');
     });
 
-    it('renders short progress bar with inverted fill', () => {
+    it('renders short progress display with inverted fill', () => {
         const widget = new BlockTimerWidget();
         const item: WidgetItem = {
             id: 'block',
             type: 'block-timer',
             metadata: {
-                display: 'progress-short',
-                invert: 'true'
+                display: 'progress-s',
+                invert: 'true',
+                showPercent: 'true'
             }
         };
 
@@ -69,7 +70,7 @@ describe('BlockTimerWidget', () => {
             remainingPercent: 25
         });
 
-        expect(render(widget, item, { usageData: {} })).toBe('Block [████░░░░░░░░░░░░] 25.0%');
+        expect(render(widget, item, { usageData: {} })).toBe('Block ████░░░░░░░░░░░░ 25.0%');
     });
 
     it('renders empty values when no usage or fallback data exists', () => {
@@ -81,8 +82,8 @@ describe('BlockTimerWidget', () => {
         expect(render(widget, {
             id: 'block',
             type: 'block-timer',
-            metadata: { display: 'progress' }
-        }, { usageData: { error: 'timeout' } })).toBe(`Block [${'░'.repeat(32)}] 0.0%`);
+            metadata: { display: 'progress', showPercent: 'true' }
+        }, { usageData: { error: 'timeout' } })).toBe(`Block ${'░'.repeat(32)} 0.0%`);
     });
 
     it('shows raw value without label in time mode', () => {
@@ -104,11 +105,11 @@ describe('BlockTimerWidget', () => {
         baseItem: { id: 'block', type: 'block-timer' },
         createWidget: () => new BlockTimerWidget(),
         expectedDisplayName: 'Block Timer',
-        expectedModifierText: '(progress bar, inverted)',
+        expectedModifierText: '(bar, inverted, percent)',
         modifierItem: {
             id: 'block',
             type: 'block-timer',
-            metadata: { display: 'progress', invert: 'true' }
+            metadata: { display: 'progress', invert: 'true', showPercent: 'true' }
         }
     });
 });

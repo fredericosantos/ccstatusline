@@ -12,11 +12,20 @@ import {
     getModelContextIdentifier
 } from '../utils/model-context';
 import { makeUsageProgressBar } from '../utils/usage';
+import {
+    cycleProgressBarMode,
+    formatProgressBarText,
+    getProgressBarMode,
+    getProgressBarWidth,
+    isProgressPercentVisible,
+    isProgressUsageVisible,
+    toggleProgressPercent,
+    toggleProgressUsage,
+    type ProgressBarMode
+} from './shared/progress-bar-display';
 
-type DisplayMode = 'progress' | 'progress-short';
-
-function getDisplayMode(item: WidgetItem): DisplayMode {
-    return item.metadata?.display === 'progress' ? 'progress' : 'progress-short';
+function getDisplayMode(item: WidgetItem): ProgressBarMode {
+    return getProgressBarMode(item, 'progress-s');
 }
 
 export class ContextBarWidget implements Widget {
@@ -27,10 +36,19 @@ export class ContextBarWidget implements Widget {
 
     getEditorDisplay(item: WidgetItem): WidgetEditorDisplay {
         const mode = getDisplayMode(item);
-        const modifiers: string[] = [];
+        const labels: Record<ProgressBarMode, string> = {
+            'progress': 'bar',
+            'progress-s': 'bar s',
+            'progress-xs': 'bar xs'
+        };
+        const modifiers = [labels[mode]];
 
-        if (mode === 'progress-short') {
-            modifiers.push('short bar');
+        if (isProgressPercentVisible(item)) {
+            modifiers.push('percent');
+        }
+
+        if (isProgressUsageVisible(item)) {
+            modifiers.push('usage');
         }
 
         return {
@@ -40,28 +58,44 @@ export class ContextBarWidget implements Widget {
     }
 
     handleEditorAction(action: string, item: WidgetItem): WidgetItem | null {
-        if (action !== 'toggle-progress') {
-            return null;
+        if (action === 'toggle-progress') {
+            const nextMode = cycleProgressBarMode(getDisplayMode(item));
+            return {
+                ...item,
+                metadata: {
+                    ...(item.metadata ?? {}),
+                    display: nextMode
+                }
+            };
         }
 
-        const currentMode = getDisplayMode(item);
-        const nextMode: DisplayMode = currentMode === 'progress-short' ? 'progress' : 'progress-short';
+        if (action === 'toggle-percent') {
+            return toggleProgressPercent(item);
+        }
 
-        return {
-            ...item,
-            metadata: {
-                ...(item.metadata ?? {}),
-                display: nextMode
-            }
-        };
+        if (action === 'toggle-usage') {
+            return toggleProgressUsage(item);
+        }
+
+        return null;
+    }
+
+    private buildDisplay(item: WidgetItem, percent: number, bar: string, usageText: string): string {
+        return formatProgressBarText(bar, {
+            showPercent: isProgressPercentVisible(item),
+            percentText: `${Math.round(percent)}%`,
+            showUsage: isProgressUsageVisible(item),
+            usageText
+        });
     }
 
     render(item: WidgetItem, context: RenderContext, settings: Settings): string | null {
         const displayMode = getDisplayMode(item);
-        const barWidth = displayMode === 'progress' ? 32 : 16;
+        const barWidth = getProgressBarWidth(displayMode);
 
         if (context.isPreview) {
-            const previewDisplay = `${makeUsageProgressBar(25, barWidth)} 50k/200k (25%)`;
+            const previewBar = makeUsageProgressBar(25, barWidth);
+            const previewDisplay = this.buildDisplay(item, 25, previewBar, '50k/200k');
             return item.rawValue ? previewDisplay : `Context: ${previewDisplay}`;
         }
 
@@ -85,17 +119,19 @@ export class ContextBarWidget implements Widget {
 
         const percent = (used / total) * 100;
         const clampedPercent = Math.max(0, Math.min(100, percent));
-
         const usedK = Math.round(used / 1000);
         const totalK = Math.round(total / 1000);
-        const display = `${makeUsageProgressBar(clampedPercent, barWidth)} ${usedK}k/${totalK}k (${Math.round(clampedPercent)}%)`;
+        const bar = makeUsageProgressBar(clampedPercent, barWidth);
+        const display = this.buildDisplay(item, clampedPercent, bar, `${usedK}k/${totalK}k`);
 
         return item.rawValue ? display : `Context: ${display}`;
     }
 
     getCustomKeybinds(): CustomKeybind[] {
         return [
-            { key: 'p', label: '(p)rogress toggle', action: 'toggle-progress' }
+            { key: 'p', label: '(p)rogress toggle', action: 'toggle-progress' },
+            { key: 'e', label: 'show p(e)rcent', action: 'toggle-percent' },
+            { key: 'u', label: 'show (u)sage', action: 'toggle-usage' }
         ];
     }
 

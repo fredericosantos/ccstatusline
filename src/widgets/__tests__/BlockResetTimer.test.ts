@@ -57,14 +57,15 @@ describe('BlockResetTimerWidget', () => {
         expect(render(widget, { id: 'reset', type: 'reset-timer' }, { usageData: {} })).toBe('Reset: 4hr');
     });
 
-    it('renders short progress bar with inverted fill', () => {
+    it('renders short progress display with inverted fill', () => {
         const widget = new BlockResetTimerWidget();
         const item: WidgetItem = {
             id: 'reset',
             type: 'reset-timer',
             metadata: {
-                display: 'progress-short',
-                invert: 'true'
+                display: 'progress-s',
+                invert: 'true',
+                showPercent: 'true'
             }
         };
 
@@ -76,7 +77,7 @@ describe('BlockResetTimerWidget', () => {
             remainingPercent: 20
         });
 
-        expect(render(widget, item, { usageData: {} })).toBe('Reset [███░░░░░░░░░░░░░] 20.0%');
+        expect(render(widget, item, { usageData: {} })).toBe('Reset ███░░░░░░░░░░░░░ 20.0%');
     });
 
     it('returns usage error when no timer data is available', () => {
@@ -115,11 +116,11 @@ describe('BlockResetTimerWidget', () => {
         baseItem: { id: 'reset', type: 'reset-timer' },
         createWidget: () => new BlockResetTimerWidget(),
         expectedDisplayName: 'Block Reset Timer',
-        expectedModifierText: '(short bar, inverted)',
+        expectedModifierText: '(bar s, inverted, percent)',
         modifierItem: {
             id: 'reset',
             type: 'reset-timer',
-            metadata: { display: 'progress-short', invert: 'true' }
+            metadata: { display: 'progress-s', invert: 'true', showPercent: 'true' }
         }
     });
 });

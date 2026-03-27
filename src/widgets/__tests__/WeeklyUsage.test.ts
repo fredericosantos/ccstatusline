@@ -28,7 +28,7 @@ describe('WeeklyUsageWidget', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
         mockGetUsageErrorMessage = vi.spyOn(usage, 'getUsageErrorMessage');
-        vi.spyOn(usage, 'makeUsageProgressBar').mockImplementation((percent: number, width = 15) => `[bar:${percent.toFixed(1)}:${width}]`);
+        vi.spyOn(usage, 'makeUsageProgressBar').mockImplementation((percent: number, width = 15) => `bar:${percent.toFixed(1)}:${width}`);
     });
 
     afterEach(() => {
@@ -39,26 +39,26 @@ describe('WeeklyUsageWidget', () => {
         baseItem: { id: 'weekly', type: 'weekly-usage' },
         createWidget: () => new WeeklyUsageWidget(),
         errorMessageMock: usageErrorMessageMock,
-        expectedModifierText: '(progress bar, inverted)',
-        expectedProgress: 'Weekly: [bar:57.9:32] 57.9%',
-        expectedRawProgress: '[bar:42.1:16] 42.1%',
+        expectedModifierText: '(bar, inverted, percent)',
+        expectedProgress: 'Weekly: bar:57.9:32 57.9%',
+        expectedRawProgress: 'bar:42.1:16 42.1%',
         expectedRawTime: '42.1%',
         expectedTime: 'Weekly: 42.1%',
         modifierItem: {
             id: 'weekly',
             type: 'weekly-usage',
-            metadata: { display: 'progress', invert: 'true' }
+            metadata: { display: 'progress', invert: 'true', showPercent: 'true' }
         },
         progressItem: {
             id: 'weekly',
             type: 'weekly-usage',
-            metadata: { display: 'progress', invert: 'true' }
+            metadata: { display: 'progress', invert: 'true', showPercent: 'true' }
         },
         rawProgressItem: {
             id: 'weekly',
             type: 'weekly-usage',
             rawValue: true,
-            metadata: { display: 'progress-short' }
+            metadata: { display: 'progress-s', showPercent: 'true' }
         },
         rawTimeItem: {
             id: 'weekly',

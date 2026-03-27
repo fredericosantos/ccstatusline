@@ -88,14 +88,15 @@ describe('WeeklyResetTimerWidget', () => {
         expect(mockFormatUsageDuration).toHaveBeenCalledWith(484800000, false, false);
     });
 
-    it('renders short progress bar with inverted fill', () => {
+    it('renders short progress display with inverted fill', () => {
         const widget = new WeeklyResetTimerWidget();
         const item: WidgetItem = {
             id: 'weekly-reset',
             type: 'weekly-reset-timer',
             metadata: {
-                display: 'progress-short',
-                invert: 'true'
+                display: 'progress-s',
+                invert: 'true',
+                showPercent: 'true'
             }
         };
 
@@ -107,7 +108,7 @@ describe('WeeklyResetTimerWidget', () => {
             remainingPercent: 20
         });
 
-        expect(render(widget, item, { usageData: {} })).toBe('Weekly Reset [███░░░░░░░░░░░░░] 20.0%');
+        expect(render(widget, item, { usageData: {} })).toBe('Weekly Reset ███░░░░░░░░░░░░░ 20.0%');
     });
 
     it('returns usage error when no weekly reset data is available', () => {
@@ -184,7 +185,7 @@ describe('WeeklyResetTimerWidget', () => {
                 display: 'progress',
                 hours: 'true'
             }
-        }).modifierText).toBe('(progress bar)');
+        }).modifierText).toBe('(bar)');
     });
 
     runUsageTimerEditorSuite({
@@ -196,11 +197,11 @@ describe('WeeklyResetTimerWidget', () => {
             { key: 's', label: '(s)hort time', action: 'toggle-compact' },
             { key: 'h', label: '(h)ours only', action: 'toggle-hours' }
         ],
-        expectedModifierText: '(short bar, inverted)',
+        expectedModifierText: '(bar s, inverted, percent)',
         modifierItem: {
             id: 'weekly-reset',
             type: 'weekly-reset-timer',
-            metadata: { display: 'progress-short', invert: 'true' }
+            metadata: { display: 'progress-s', invert: 'true', showPercent: 'true' }
         }
     });
 });

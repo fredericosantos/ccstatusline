@@ -53,7 +53,8 @@ const EXPECTED_USAGE_KEYBINDS: CustomKeybind[] = [
 
 const EXPECTED_USAGE_PROGRESS_KEYBINDS: CustomKeybind[] = [
     { key: 'p', label: '(p)rogress toggle', action: 'toggle-progress' },
-    { key: 'v', label: 'in(v)ert fill', action: 'toggle-invert' }
+    { key: 'v', label: 'in(v)ert fill', action: 'toggle-invert' },
+    { key: 'e', label: 'show p(e)rcent', action: 'toggle-percent' }
 ];
 
 const EXPECTED_TIMER_TIME_KEYBINDS: CustomKeybind[] = [
@@ -63,7 +64,8 @@ const EXPECTED_TIMER_TIME_KEYBINDS: CustomKeybind[] = [
 
 const EXPECTED_TIMER_PROGRESS_KEYBINDS: CustomKeybind[] = [
     { key: 'p', label: '(p)rogress toggle', action: 'toggle-progress' },
-    { key: 'v', label: 'in(v)ert fill', action: 'toggle-invert' }
+    { key: 'v', label: 'in(v)ert fill', action: 'toggle-invert' },
+    { key: 'e', label: 'show p(e)rcent', action: 'toggle-percent' }
 ];
 
 function getUsageContext(field: 'sessionUsage' | 'weeklyUsage', value: number): RenderContext {
@@ -125,7 +127,7 @@ export function runUsagePercentWidgetSuite<TWidget extends UsageWidgetLike>(conf
         const updated = widget.handleEditorAction('toggle-progress', {
             ...config.baseItem,
             metadata: {
-                display: 'progress-short',
+                display: 'progress-xs',
                 invert: 'true'
             }
         });
@@ -140,10 +142,12 @@ export function runUsagePercentWidgetSuite<TWidget extends UsageWidgetLike>(conf
         const first = widget.handleEditorAction('toggle-progress', config.baseItem);
         const second = widget.handleEditorAction('toggle-progress', first ?? config.baseItem);
         const third = widget.handleEditorAction('toggle-progress', second ?? config.baseItem);
+        const fourth = widget.handleEditorAction('toggle-progress', third ?? config.baseItem);
 
         expect(first?.metadata?.display).toBe('progress');
-        expect(second?.metadata?.display).toBe('progress-short');
-        expect(third?.metadata?.display).toBe('time');
+        expect(second?.metadata?.display).toBe('progress-s');
+        expect(third?.metadata?.display).toBe('progress-xs');
+        expect(fourth?.metadata?.display).toBe('time');
     });
 
     it('toggles invert metadata and shows editor modifiers', () => {
@@ -195,7 +199,7 @@ export function runUsageTimerEditorSuite<TWidget extends UsageWidgetLike & { get
         const updated = widget.handleEditorAction('toggle-progress', {
             ...config.baseItem,
             metadata: {
-                display: 'progress-short',
+                display: 'progress-xs',
                 invert: 'true'
             }
         });
@@ -210,10 +214,12 @@ export function runUsageTimerEditorSuite<TWidget extends UsageWidgetLike & { get
         const first = widget.handleEditorAction('toggle-progress', config.baseItem);
         const second = widget.handleEditorAction('toggle-progress', first ?? config.baseItem);
         const third = widget.handleEditorAction('toggle-progress', second ?? config.baseItem);
+        const fourth = widget.handleEditorAction('toggle-progress', third ?? config.baseItem);
 
         expect(first?.metadata?.display).toBe('progress');
-        expect(second?.metadata?.display).toBe('progress-short');
-        expect(third?.metadata?.display).toBe('time');
+        expect(second?.metadata?.display).toBe('progress-s');
+        expect(third?.metadata?.display).toBe('progress-xs');
+        expect(fourth?.metadata?.display).toBe('time');
     });
 
     it('clears compact metadata when cycling into progress mode', () => {

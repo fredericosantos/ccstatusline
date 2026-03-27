@@ -8,29 +8,28 @@ import type {
 } from '../types/Widget';
 import {
     formatUsageDuration,
+    makeUsageProgressBar,
     resolveUsageWindowWithFallback
 } from '../utils/usage';
 
 import { formatRawOrLabeledValue } from './shared/raw-or-labeled';
 import {
     cycleUsageDisplayMode,
+    isUsageBarMode,
     getUsageDisplayMode,
     getUsageDisplayModifierText,
     getUsageProgressBarWidth,
     getUsageTimerCustomKeybinds,
     isUsageCompact,
     isUsageInverted,
-    isUsageProgressMode,
     toggleUsageCompact,
     toggleUsageInverted
 } from './shared/usage-display';
-
-function makeTimerProgressBar(percent: number, width: number): string {
-    const clampedPercent = Math.max(0, Math.min(100, percent));
-    const filledWidth = Math.floor((clampedPercent / 100) * width);
-    const emptyWidth = width - filledWidth;
-    return '█'.repeat(filledWidth) + '░'.repeat(emptyWidth);
-}
+import {
+    formatProgressBarText,
+    isProgressPercentVisible,
+    toggleProgressPercent
+} from './shared/progress-bar-display';
 
 export class BlockTimerWidget implements Widget {
     getDefaultColor(): string { return 'yellow'; }
@@ -58,6 +57,10 @@ export class BlockTimerWidget implements Widget {
             return toggleUsageCompact(item);
         }
 
+        if (action === 'toggle-percent') {
+            return toggleProgressPercent(item);
+        }
+
         return null;
     }
 
@@ -69,10 +72,14 @@ export class BlockTimerWidget implements Widget {
         if (context.isPreview) {
             const previewPercent = inverted ? 26.1 : 73.9;
 
-            if (isUsageProgressMode(displayMode)) {
+            if (isUsageBarMode(displayMode)) {
                 const barWidth = getUsageProgressBarWidth(displayMode);
-                const progressBar = makeTimerProgressBar(previewPercent, barWidth);
-                return formatRawOrLabeledValue(item, 'Block ', `[${progressBar}] ${previewPercent.toFixed(1)}%`);
+                const bar = makeUsageProgressBar(previewPercent, barWidth);
+                const display = formatProgressBarText(bar, {
+                    showPercent: isProgressPercentVisible(item),
+                    percentText: `${previewPercent.toFixed(1)}%`
+                });
+                return formatRawOrLabeledValue(item, 'Block ', display);
             }
 
             return formatRawOrLabeledValue(item, 'Block: ', compact ? '3h45m' : '3hr 45m');
@@ -82,21 +89,28 @@ export class BlockTimerWidget implements Widget {
         const window = resolveUsageWindowWithFallback(usageData, context.blockMetrics);
 
         if (!window) {
-            if (isUsageProgressMode(displayMode)) {
+            if (isUsageBarMode(displayMode)) {
                 const barWidth = getUsageProgressBarWidth(displayMode);
-                const emptyBar = '░'.repeat(barWidth);
-                return formatRawOrLabeledValue(item, 'Block ', `[${emptyBar}] 0.0%`);
+                const emptyBar = makeUsageProgressBar(0, barWidth);
+                const display = formatProgressBarText(emptyBar, {
+                    showPercent: isProgressPercentVisible(item),
+                    percentText: '0.0%'
+                });
+                return formatRawOrLabeledValue(item, 'Block ', display);
             }
 
             return formatRawOrLabeledValue(item, 'Block: ', compact ? '0h' : '0hr 0m');
         }
 
-        if (isUsageProgressMode(displayMode)) {
+        if (isUsageBarMode(displayMode)) {
             const barWidth = getUsageProgressBarWidth(displayMode);
             const percent = inverted ? window.remainingPercent : window.elapsedPercent;
-            const progressBar = makeTimerProgressBar(percent, barWidth);
-            const percentage = percent.toFixed(1);
-            return formatRawOrLabeledValue(item, 'Block ', `[${progressBar}] ${percentage}%`);
+            const bar = makeUsageProgressBar(percent, barWidth);
+            const display = formatProgressBarText(bar, {
+                showPercent: isProgressPercentVisible(item),
+                percentText: `${percent.toFixed(1)}%`
+            });
+            return formatRawOrLabeledValue(item, 'Block ', display);
         }
 
         const elapsedTime = formatUsageDuration(window.elapsedMs, compact);

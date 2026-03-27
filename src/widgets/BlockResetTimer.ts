@@ -9,29 +9,28 @@ import type {
 import {
     formatUsageDuration,
     getUsageErrorMessage,
+    makeUsageProgressBar,
     resolveUsageWindowWithFallback
 } from '../utils/usage';
 
 import { formatRawOrLabeledValue } from './shared/raw-or-labeled';
 import {
     cycleUsageDisplayMode,
+    isUsageBarMode,
     getUsageDisplayMode,
     getUsageDisplayModifierText,
     getUsageProgressBarWidth,
     getUsageTimerCustomKeybinds,
     isUsageCompact,
     isUsageInverted,
-    isUsageProgressMode,
     toggleUsageCompact,
     toggleUsageInverted
 } from './shared/usage-display';
-
-function makeTimerProgressBar(percent: number, width: number): string {
-    const clampedPercent = Math.max(0, Math.min(100, percent));
-    const filledWidth = Math.floor((clampedPercent / 100) * width);
-    const emptyWidth = width - filledWidth;
-    return '█'.repeat(filledWidth) + '░'.repeat(emptyWidth);
-}
+import {
+    formatProgressBarText,
+    isProgressPercentVisible,
+    toggleProgressPercent
+} from './shared/progress-bar-display';
 
 export class BlockResetTimerWidget implements Widget {
     getDefaultColor(): string { return 'brightBlue'; }
@@ -59,6 +58,10 @@ export class BlockResetTimerWidget implements Widget {
             return toggleUsageCompact(item);
         }
 
+        if (action === 'toggle-percent') {
+            return toggleProgressPercent(item);
+        }
+
         return null;
     }
 
@@ -70,10 +73,14 @@ export class BlockResetTimerWidget implements Widget {
         if (context.isPreview) {
             const previewPercent = inverted ? 90.0 : 10.0;
 
-            if (isUsageProgressMode(displayMode)) {
+            if (isUsageBarMode(displayMode)) {
                 const barWidth = getUsageProgressBarWidth(displayMode);
-                const progressBar = makeTimerProgressBar(previewPercent, barWidth);
-                return formatRawOrLabeledValue(item, 'Reset ', `[${progressBar}] ${previewPercent.toFixed(1)}%`);
+                const bar = makeUsageProgressBar(previewPercent, barWidth);
+                const display = formatProgressBarText(bar, {
+                    showPercent: isProgressPercentVisible(item),
+                    percentText: `${previewPercent.toFixed(1)}%`
+                });
+                return formatRawOrLabeledValue(item, 'Reset ', display);
             }
 
             return formatRawOrLabeledValue(item, 'Reset: ', compact ? '4h30m' : '4hr 30m');
@@ -90,12 +97,15 @@ export class BlockResetTimerWidget implements Widget {
             return null;
         }
 
-        if (isUsageProgressMode(displayMode)) {
+        if (isUsageBarMode(displayMode)) {
             const barWidth = getUsageProgressBarWidth(displayMode);
             const percent = inverted ? window.remainingPercent : window.elapsedPercent;
-            const progressBar = makeTimerProgressBar(percent, barWidth);
-            const percentage = percent.toFixed(1);
-            return formatRawOrLabeledValue(item, 'Reset ', `[${progressBar}] ${percentage}%`);
+            const bar = makeUsageProgressBar(percent, barWidth);
+            const display = formatProgressBarText(bar, {
+                showPercent: isProgressPercentVisible(item),
+                percentText: `${percent.toFixed(1)}%`
+            });
+            return formatRawOrLabeledValue(item, 'Reset ', display);
         }
 
         const remainingTime = formatUsageDuration(window.remainingMs, compact);

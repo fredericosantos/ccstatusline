@@ -14,14 +14,19 @@ import {
 import { formatRawOrLabeledValue } from './shared/raw-or-labeled';
 import {
     cycleUsageDisplayMode,
+    isUsageBarMode,
     getUsageDisplayMode,
     getUsageDisplayModifierText,
     getUsagePercentCustomKeybinds,
     getUsageProgressBarWidth,
     isUsageInverted,
-    isUsageProgressMode,
     toggleUsageInverted
 } from './shared/usage-display';
+import {
+    formatProgressBarText,
+    isProgressPercentVisible,
+    toggleProgressPercent
+} from './shared/progress-bar-display';
 
 export class SessionUsageWidget implements Widget {
     getDefaultColor(): string { return 'brightBlue'; }
@@ -45,6 +50,10 @@ export class SessionUsageWidget implements Widget {
             return toggleUsageInverted(item);
         }
 
+        if (action === 'toggle-percent') {
+            return toggleProgressPercent(item);
+        }
+
         return null;
     }
 
@@ -55,11 +64,15 @@ export class SessionUsageWidget implements Widget {
         if (context.isPreview) {
             const previewPercent = 20;
             const renderedPercent = inverted ? 100 - previewPercent : previewPercent;
+            const width = getUsageProgressBarWidth(displayMode);
 
-            if (isUsageProgressMode(displayMode)) {
-                const width = getUsageProgressBarWidth(displayMode);
-                const progressDisplay = `${makeUsageProgressBar(renderedPercent, width)} ${renderedPercent.toFixed(1)}%`;
-                return formatRawOrLabeledValue(item, 'Session: ', progressDisplay);
+            if (isUsageBarMode(displayMode)) {
+                const bar = makeUsageProgressBar(renderedPercent, width);
+                const display = formatProgressBarText(bar, {
+                    showPercent: isProgressPercentVisible(item),
+                    percentText: `${renderedPercent.toFixed(1)}%`
+                });
+                return formatRawOrLabeledValue(item, 'Session: ', display);
             }
 
             return formatRawOrLabeledValue(item, 'Session: ', `${previewPercent.toFixed(1)}%`);
@@ -72,11 +85,16 @@ export class SessionUsageWidget implements Widget {
             return null;
 
         const percent = Math.max(0, Math.min(100, data.sessionUsage));
-        if (isUsageProgressMode(displayMode)) {
-            const width = getUsageProgressBarWidth(displayMode);
-            const renderedPercent = inverted ? 100 - percent : percent;
-            const progressDisplay = `${makeUsageProgressBar(renderedPercent, width)} ${renderedPercent.toFixed(1)}%`;
-            return formatRawOrLabeledValue(item, 'Session: ', progressDisplay);
+        const renderedPercent = inverted ? 100 - percent : percent;
+        const width = getUsageProgressBarWidth(displayMode);
+
+        if (isUsageBarMode(displayMode)) {
+            const bar = makeUsageProgressBar(renderedPercent, width);
+            const display = formatProgressBarText(bar, {
+                showPercent: isProgressPercentVisible(item),
+                percentText: `${renderedPercent.toFixed(1)}%`
+            });
+            return formatRawOrLabeledValue(item, 'Session: ', display);
         }
 
         return formatRawOrLabeledValue(item, 'Session: ', `${percent.toFixed(1)}%`);
