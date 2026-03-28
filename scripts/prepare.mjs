@@ -12,6 +12,10 @@ function hasBun() {
 }
 
 if (!hasBun()) {
+    if (existsSync('dist/ccstatusline.js')) {
+        console.log('Skipping build (bun not found, using pre-built dist)');
+        process.exit(0);
+    }
     console.error('Error: bun is required to build ccstatusline. Install it: curl -fsSL https://bun.sh/install | bash');
     process.exit(1);
 }
