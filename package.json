@@ -61,7 +61,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sirmalloc/ccstatusline.git"
+    "url": "git+https://github.com/fredericosantos/ccstatusline.git"
   },
   "engines": {
     "node": ">=14.0.0"

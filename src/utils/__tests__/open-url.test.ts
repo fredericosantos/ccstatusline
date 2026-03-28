@@ -28,33 +28,33 @@ describe('openExternalUrl', () => {
         vi.spyOn(os, 'platform').mockReturnValue('darwin');
         mockSpawnSync.mockReturnValue({ status: 0 });
 
-        const result = openExternalUrl('https://github.com/sirmalloc/ccstatusline');
+        const result = openExternalUrl('https://github.com/fredericosantos/ccstatusline');
 
         expect(result).toEqual({ success: true });
         expect(mockSpawnSync.mock.calls[0]?.[0]).toBe('open');
-        expect(mockSpawnSync.mock.calls[0]?.[1]).toEqual(['https://github.com/sirmalloc/ccstatusline']);
+        expect(mockSpawnSync.mock.calls[0]?.[1]).toEqual(['https://github.com/fredericosantos/ccstatusline']);
     });
 
     it('uses cmd start on Windows', () => {
         vi.spyOn(os, 'platform').mockReturnValue('win32');
         mockSpawnSync.mockReturnValue({ status: 0 });
 
-        const result = openExternalUrl('https://github.com/sirmalloc/ccstatusline');
+        const result = openExternalUrl('https://github.com/fredericosantos/ccstatusline');
 
         expect(result).toEqual({ success: true });
         expect(mockSpawnSync.mock.calls[0]?.[0]).toBe('cmd');
-        expect(mockSpawnSync.mock.calls[0]?.[1]).toEqual(['/c', 'start', '', 'https://github.com/sirmalloc/ccstatusline']);
+        expect(mockSpawnSync.mock.calls[0]?.[1]).toEqual(['/c', 'start', '', 'https://github.com/fredericosantos/ccstatusline']);
     });
 
     it('uses xdg-open on Linux when available', () => {
         vi.spyOn(os, 'platform').mockReturnValue('linux');
         mockSpawnSync.mockReturnValue({ status: 0 });
 
-        const result = openExternalUrl('https://github.com/sirmalloc/ccstatusline');
+        const result = openExternalUrl('https://github.com/fredericosantos/ccstatusline');
 
         expect(result).toEqual({ success: true });
         expect(mockSpawnSync.mock.calls[0]?.[0]).toBe('xdg-open');
-        expect(mockSpawnSync.mock.calls[0]?.[1]).toEqual(['https://github.com/sirmalloc/ccstatusline']);
+        expect(mockSpawnSync.mock.calls[0]?.[1]).toEqual(['https://github.com/fredericosantos/ccstatusline']);
     });
 
     it('falls back to gio open when xdg-open fails', () => {
@@ -62,13 +62,13 @@ describe('openExternalUrl', () => {
         mockSpawnSync.mockReturnValueOnce({ status: 1 });
         mockSpawnSync.mockReturnValueOnce({ status: 0 });
 
-        const result = openExternalUrl('https://github.com/sirmalloc/ccstatusline');
+        const result = openExternalUrl('https://github.com/fredericosantos/ccstatusline');
 
         expect(result).toEqual({ success: true });
         expect(mockSpawnSync.mock.calls.length).toBe(2);
         expect(mockSpawnSync.mock.calls[0]?.[0]).toBe('xdg-open');
         expect(mockSpawnSync.mock.calls[1]?.[0]).toBe('gio');
-        expect(mockSpawnSync.mock.calls[1]?.[1]).toEqual(['open', 'https://github.com/sirmalloc/ccstatusline']);
+        expect(mockSpawnSync.mock.calls[1]?.[1]).toEqual(['open', 'https://github.com/fredericosantos/ccstatusline']);
     });
 
     it('returns failure when Linux openers fail', () => {
@@ -76,7 +76,7 @@ describe('openExternalUrl', () => {
         mockSpawnSync.mockReturnValueOnce({ status: 1 });
         mockSpawnSync.mockReturnValueOnce({ status: 2 });
 
-        const result = openExternalUrl('https://github.com/sirmalloc/ccstatusline');
+        const result = openExternalUrl('https://github.com/fredericosantos/ccstatusline');
 
         expect(result.success).toBe(false);
         expect(result.error).toContain('xdg-open failed');
@@ -107,7 +107,7 @@ describe('openExternalUrl', () => {
         vi.spyOn(os, 'platform').mockReturnValue('darwin');
         mockSpawnSync.mockReturnValue({ error: new Error('spawn failed') });
 
-        const result = openExternalUrl('https://github.com/sirmalloc/ccstatusline');
+        const result = openExternalUrl('https://github.com/fredericosantos/ccstatusline');
 
         expect(result).toEqual({
             success: false,
@@ -122,7 +122,7 @@ describe('openExternalUrl', () => {
             signal: 'SIGTERM'
         });
 
-        const result = openExternalUrl('https://github.com/sirmalloc/ccstatusline');
+        const result = openExternalUrl('https://github.com/fredericosantos/ccstatusline');
 
         expect(result).toEqual({
             success: false,
@@ -133,7 +133,7 @@ describe('openExternalUrl', () => {
     it('returns unsupported platform error', () => {
         vi.spyOn(os, 'platform').mockReturnValue('freebsd');
 
-        const result = openExternalUrl('https://github.com/sirmalloc/ccstatusline');
+        const result = openExternalUrl('https://github.com/fredericosantos/ccstatusline');
 
         expect(result).toEqual({
             success: false,

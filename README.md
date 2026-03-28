@@ -16,16 +16,16 @@
 
 [![npm version](https://img.shields.io/npm/v/ccstatusline.svg)](https://www.npmjs.com/package/ccstatusline)
 [![npm downloads](https://img.shields.io/npm/dm/ccstatusline.svg)](https://www.npmjs.com/package/ccstatusline)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/sirmalloc/ccstatusline/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/fredericosantos/ccstatusline/blob/main/LICENSE)
 [![Node.js Version](https://img.shields.io/node/v/ccstatusline.svg)](https://nodejs.org)
 [![install size](https://packagephobia.com/badge?p=ccstatusline)](https://packagephobia.com/result?p=ccstatusline)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/sirmalloc/ccstatusline/graphs/commit-activity)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/fredericosantos/ccstatusline/graphs/commit-activity)
 
 [![Mentioned in Awesome Claude Code](https://awesome.re/mentioned-badge.svg)](https://github.com/hesreallyhim/awesome-claude-code)
 [![ClaudeLog - A comprehensive knowledge base for Claude](https://claudelog.com/img/claude_log_badge.svg)](https://claudelog.com/)
 
 
-![Demo](https://raw.githubusercontent.com/sirmalloc/ccstatusline/main/screenshots/demo.gif)
+![Demo](https://raw.githubusercontent.com/fredericosantos/ccstatusline/main/screenshots/demo.gif)
 
 </div>
 
@@ -102,7 +102,7 @@
 
 - **👾 Emoji Support** - You can now paste emoji into the custom text widget. You can also turn on the merge option to get emoji labels for your widgets like this:
   
-![Emoji Support](https://raw.githubusercontent.com/sirmalloc/ccstatusline/main/screenshots/emojiSupport.png)
+![Emoji Support](https://raw.githubusercontent.com/fredericosantos/ccstatusline/main/screenshots/emojiSupport.png)
 
 ### v2.0.11 - Unlimited Status Lines
 
@@ -115,13 +115,13 @@
 
 ### v2.0.8 - Powerline Auto-Alignment
 
-![Powerline Auto-Alignment](https://raw.githubusercontent.com/sirmalloc/ccstatusline/main/screenshots/autoAlign.png)
+![Powerline Auto-Alignment](https://raw.githubusercontent.com/fredericosantos/ccstatusline/main/screenshots/autoAlign.png)
 
 - **🎯 Widget Alignment** - Auto-align widgets across multiple status lines in Powerline mode for a clean, columnar layout (toggle with 'a' in Powerline Setup)
 
 ### v2.0.7 - Current Working Directory & Session Cost
 
-![Current Working Directory and Session Cost](https://raw.githubusercontent.com/sirmalloc/ccstatusline/main/screenshots/cwdAndSessionCost.png)
+![Current Working Directory and Session Cost](https://raw.githubusercontent.com/fredericosantos/ccstatusline/main/screenshots/cwdAndSessionCost.png)
 
 - **📁 Current Working Directory** - Display the current working directory with configurable segment display
   - Set the number of path segments to show (e.g., show only last 2 segments: `.../Personal/ccstatusline`)
@@ -139,7 +139,7 @@
 
 ### v2.0.2 - Block Timer Widget
 
-![Block Timer](https://raw.githubusercontent.com/sirmalloc/ccstatusline/main/screenshots/blockTimerSmall.png)
+![Block Timer](https://raw.githubusercontent.com/fredericosantos/ccstatusline/main/screenshots/blockTimerSmall.png)
 
 - **⏱️ Block Timer** - Track your progress through 5-hour Claude Code blocks
   - Displays time elapsed in current block as hours/minutes (e.g., "3hr 45m")
@@ -486,7 +486,7 @@ These settings affect where long lines are truncated, and where right-alignment 
 
 Configure global formatting preferences that apply to all widgets:
 
-![Global Options](https://raw.githubusercontent.com/sirmalloc/ccstatusline/main/screenshots/global.png)
+![Global Options](https://raw.githubusercontent.com/fredericosantos/ccstatusline/main/screenshots/global.png)
 
 #### Default Padding & Separators
 - **Default Padding** - Add consistent padding to the left and right of each widget
@@ -518,7 +518,7 @@ Configure global formatting preferences that apply to all widgets:
 
 The Block Timer widget helps you track your progress through Claude Code's 5-hour conversation blocks:
 
-![Block Timer](https://raw.githubusercontent.com/sirmalloc/ccstatusline/main/screenshots/blockTimer.png)
+![Block Timer](https://raw.githubusercontent.com/fredericosantos/ccstatusline/main/screenshots/blockTimer.png)
 
 **Display Modes:**
 - **Time Display** - Shows elapsed time as "3hr 45m" (default)
@@ -607,7 +607,7 @@ Create clickable links in terminals that support OSC 8 hyperlinks:
 3. Set timeout: `5000` (5 seconds for initial download)
 4. Enable "preserve colors" to keep ccusage's color formatting
 
-![ccusage integration](https://raw.githubusercontent.com/sirmalloc/ccstatusline/main/screenshots/ccusage.png)
+![ccusage integration](https://raw.githubusercontent.com/fredericosantos/ccstatusline/main/screenshots/ccusage.png)
 
 > 📄 **How it works:** The command receives Claude Code's JSON data via stdin, allowing ccusage to access session information, model details, and transcript data for accurate usage tracking.
 
@@ -662,7 +662,7 @@ The documentation will be generated in the `docs/` directory and can be viewed b
 
 ```bash
 # Clone the repository
-git clone https://github.com/sirmalloc/ccstatusline.git
+git clone https://github.com/fredericosantos/ccstatusline.git
 cd ccstatusline
 
 # Install dependencies
@@ -796,11 +796,11 @@ If ccstatusline is useful to you, consider buying me a coffee:
 
 ## Star History
 
-<a href="https://www.star-history.com/#sirmalloc/ccstatusline&Timeline">
+<a href="https://www.star-history.com/#fredericosantos/ccstatusline&Timeline">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=sirmalloc/ccstatusline&type=Timeline&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=sirmalloc/ccstatusline&type=Timeline" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=sirmalloc/ccstatusline&type=Timeline" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=fredericosantos/ccstatusline&type=Timeline&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=fredericosantos/ccstatusline&type=Timeline" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=fredericosantos/ccstatusline&type=Timeline" />
  </picture>
 </a>
 
@@ -810,21 +810,21 @@ If ccstatusline is useful to you, consider buying me a coffee:
 
 Give a ⭐ if this project helped you!
 
-[![GitHub stars](https://img.shields.io/github/stars/sirmalloc/ccstatusline?style=social)](https://github.com/sirmalloc/ccstatusline/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/sirmalloc/ccstatusline?style=social)](https://github.com/sirmalloc/ccstatusline/network/members)
-[![GitHub watchers](https://img.shields.io/github/watchers/sirmalloc/ccstatusline?style=social)](https://github.com/sirmalloc/ccstatusline/watchers)
+[![GitHub stars](https://img.shields.io/github/stars/fredericosantos/ccstatusline?style=social)](https://github.com/fredericosantos/ccstatusline/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/fredericosantos/ccstatusline?style=social)](https://github.com/fredericosantos/ccstatusline/network/members)
+[![GitHub watchers](https://img.shields.io/github/watchers/fredericosantos/ccstatusline?style=social)](https://github.com/fredericosantos/ccstatusline/watchers)
 
 [![npm version](https://img.shields.io/npm/v/ccstatusline.svg)](https://www.npmjs.com/package/ccstatusline)
 [![npm downloads](https://img.shields.io/npm/dm/ccstatusline.svg)](https://www.npmjs.com/package/ccstatusline)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/sirmalloc/ccstatusline/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/fredericosantos/ccstatusline/blob/main/LICENSE)
 [![Made with Bun](https://img.shields.io/badge/Made%20with-Bun-000000.svg?logo=bun)](https://bun.sh)
 
-[![Issues](https://img.shields.io/github/issues/sirmalloc/ccstatusline)](https://github.com/sirmalloc/ccstatusline/issues)
-[![Pull Requests](https://img.shields.io/github/issues-pr/sirmalloc/ccstatusline)](https://github.com/sirmalloc/ccstatusline/pulls)
-[![Contributors](https://img.shields.io/github/contributors/sirmalloc/ccstatusline)](https://github.com/sirmalloc/ccstatusline/graphs/contributors)
+[![Issues](https://img.shields.io/github/issues/fredericosantos/ccstatusline)](https://github.com/fredericosantos/ccstatusline/issues)
+[![Pull Requests](https://img.shields.io/github/issues-pr/fredericosantos/ccstatusline)](https://github.com/fredericosantos/ccstatusline/pulls)
+[![Contributors](https://img.shields.io/github/contributors/fredericosantos/ccstatusline)](https://github.com/fredericosantos/ccstatusline/graphs/contributors)
 
 ### 💬 Connect
 
-[Report Bug](https://github.com/sirmalloc/ccstatusline/issues) · [Request Feature](https://github.com/sirmalloc/ccstatusline/issues) · [Discussions](https://github.com/sirmalloc/ccstatusline/discussions)
+[Report Bug](https://github.com/fredericosantos/ccstatusline/issues) · [Request Feature](https://github.com/fredericosantos/ccstatusline/issues) · [Discussions](https://github.com/fredericosantos/ccstatusline/discussions)
 
 </div>
