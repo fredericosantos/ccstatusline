@@ -305,21 +305,18 @@ async function main() {
                 console.error('Error parsing JSON:', error);
                 process.exit(1);
             }
-        } else {
-            console.error('No input received');
-            process.exit(1);
+            return;
         }
-    } else {
-        // Interactive mode - run TUI
-        // Remove updatemessage before running TUI
-        const settings = await loadSettings();
-        if (settings.updatemessage) {
-            const { updatemessage, ...newSettings } = settings;
-            void updatemessage;
-            await saveSettings(newSettings);
-        }
-        runTUI();
     }
+
+    // Interactive mode - run TUI (when TTY or when no piped input received)
+    const settings = await loadSettings();
+    if (settings.updatemessage) {
+        const { updatemessage, ...newSettings } = settings;
+        void updatemessage;
+        await saveSettings(newSettings);
+    }
+    runTUI();
 }
 
 void main();
