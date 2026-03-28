@@ -22,10 +22,10 @@ import {
 } from '../../utils/speed-metrics';
 import {
     DEFAULT_SPEED_WINDOW_SECONDS,
-    MAX_SPEED_WINDOW_SECONDS,
-    MIN_SPEED_WINDOW_SECONDS,
     getWidgetSpeedWindowSeconds,
     isWidgetSpeedWindowEnabled,
+    MAX_SPEED_WINDOW_SECONDS,
+    MIN_SPEED_WINDOW_SECONDS,
     withWidgetSpeedWindowSeconds
 } from '../../utils/speed-window';
 

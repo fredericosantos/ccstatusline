@@ -22,16 +22,16 @@ import {
     getWidgetCatalogCategories
 } from '../../utils/widgets';
 
-import { ConfirmDialog } from './ConfirmDialog';
 import {
+    type CustomEditorWidgetState,
     handleMoveInputMode,
     handleNormalInputMode,
     handlePickerInputMode,
     normalizePickerState,
-    type CustomEditorWidgetState,
     type WidgetPickerAction,
     type WidgetPickerState
 } from './items-editor/input-handlers';
+import { ConfirmDialog } from './ConfirmDialog';
 
 export interface ItemsEditorProps {
     widgets: WidgetItem[];

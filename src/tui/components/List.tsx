@@ -1,16 +1,16 @@
 import type { ForegroundColorName } from 'chalk';
 import {
     Box,
+    type BoxProps,
     Text,
-    useInput,
-    type BoxProps
+    useInput
 } from 'ink';
 import {
+    type PropsWithChildren,
     useEffect,
     useMemo,
     useRef,
-    useState,
-    type PropsWithChildren
+    useState
 } from 'react';
 
 export interface ListEntry<V = string | number> {

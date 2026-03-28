@@ -1,5 +1,5 @@
-import { render } from 'ink';
 import { PassThrough } from 'node:stream';
+import { render } from 'ink';
 import React from 'react';
 import stripAnsi from 'strip-ansi';
 import {

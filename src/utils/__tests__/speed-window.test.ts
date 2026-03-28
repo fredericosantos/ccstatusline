@@ -6,8 +6,8 @@ import {
 
 import type { WidgetItem } from '../../types/Widget';
 import {
-    DEFAULT_SPEED_WINDOW_SECONDS,
     clampSpeedWindowSeconds,
+    DEFAULT_SPEED_WINDOW_SECONDS,
     getWidgetSpeedWindowSeconds,
     isWidgetSpeedWindowEnabled,
     withWidgetSpeedWindowSeconds

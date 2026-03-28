@@ -4,9 +4,9 @@ import * as path from 'path';
 
 import {
     CURRENT_VERSION,
+    type Settings,
     SettingsSchema,
-    SettingsSchema_v1,
-    type Settings
+    SettingsSchema_v1
 } from '../types/Settings';
 
 import {

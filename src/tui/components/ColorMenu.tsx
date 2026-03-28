@@ -18,7 +18,6 @@ import {
 import { shouldInsertInput } from '../../utils/input-guards';
 import { getWidget } from '../../utils/widgets';
 
-import { ConfirmDialog } from './ConfirmDialog';
 import {
     clearAllWidgetStyling,
     cycleWidgetColor,
@@ -26,6 +25,7 @@ import {
     setWidgetColor,
     toggleWidgetBold
 } from './color-menu/mutations';
+import { ConfirmDialog } from './ConfirmDialog';
 
 export interface ColorMenuProps {
     widgets: WidgetItem[];

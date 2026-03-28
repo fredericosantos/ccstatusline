@@ -8,8 +8,8 @@ import {
     describe,
     expect,
     it,
-    vi,
-    type MockInstance
+    type MockInstance,
+    vi
 } from 'vitest';
 
 import {

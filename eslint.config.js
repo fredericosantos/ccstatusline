@@ -3,6 +3,7 @@ import ts from 'typescript-eslint';
 import stylistic from '@stylistic/eslint-plugin';
 import importPlugin from 'eslint-plugin-import';
 import importNewlinesPlugin from 'eslint-plugin-import-newlines';
+import simpleImportSortPlugin from 'eslint-plugin-simple-import-sort';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import globals from 'globals';
@@ -30,7 +31,8 @@ export default ts.config([
         plugins: {
             stylistic,
             importPlugin,
-            'import-newlines': importNewlinesPlugin
+            'import-newlines': importNewlinesPlugin,
+            'simple-import-sort': simpleImportSortPlugin
         },
         extends: [
             js.configs.recommended,
@@ -60,27 +62,15 @@ export default ts.config([
         rules: {
             'no-control-regex': 'off', // We intentionally match ANSI escape sequences
             'eqeqeq': 'error',
-            'import/order': ['error', {
-                alphabetize: {
-                    'order': 'asc',
-                    'orderImportKind': 'asc',
-                    'caseInsensitive': false
-                },
-                named: {
-                    'enabled': true,
-                    'types': 'types-last'
-                },
-                pathGroupsExcludedImportTypes: ["builtin"],
+            'simple-import-sort/imports': ['error', {
                 groups: [
-                    ['builtin', 'external'],
-                    'internal',
-                    'parent',
-                    'sibling',
-                    'index',
-                    'unknown'
-                ],
-                'newlines-between': 'always'
+                    ['^node:', '^@?\\w'],
+                    ['^'],
+                    ['^\\.\\.(?!/?$)', '^\\.\\./?$'],
+                    ['^\\./(?=.*/)(?!/?$)', '^\\.(?!/?$)', '^\\./?$']
+                ]
             }],
+            'simple-import-sort/exports': 'error',
             'import-newlines/enforce': ['error', {
                 items: 1,
                 semi: true

@@ -5,8 +5,8 @@ import * as path from 'path';
 
 import type { ClaudeSettings } from '../types/ClaudeSettings';
 import {
-    SettingsSchema,
-    type Settings
+    type Settings,
+    SettingsSchema
 } from '../types/Settings';
 
 import {

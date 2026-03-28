@@ -1,9 +1,9 @@
+import * as os from 'node:os';
 import {
     Box,
     Text,
     useInput
 } from 'ink';
-import * as os from 'node:os';
 import React, { useState } from 'react';
 
 import type { RenderContext } from '../types/RenderContext';

@@ -1,5 +1,5 @@
-import { render } from 'ink';
 import { PassThrough } from 'node:stream';
+import { render } from 'ink';
 import React from 'react';
 import {
     afterEach,
@@ -12,9 +12,9 @@ import {
 import { DEFAULT_SETTINGS } from '../../../types/Settings';
 import { getPowerlineThemes } from '../../../utils/colors';
 import {
-    PowerlineThemeSelector,
     applyCustomPowerlineTheme,
     buildPowerlineThemeItems,
+    PowerlineThemeSelector,
     type PowerlineThemeSelectorProps
 } from '../PowerlineThemeSelector';
 

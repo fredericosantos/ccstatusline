@@ -5,20 +5,19 @@ import type {
 
 import { makeModifierText } from './editor-display';
 import {
-    type ProgressBarMode,
-    getProgressBarWidth,
-    isProgressPercentVisible,
-    isProgressUsageVisible,
-    isProgressBarMode
-} from './progress-bar-display';
-import {
     isMetadataFlagEnabled,
     removeMetadataKeys,
     toggleMetadataFlag
 } from './metadata';
+import {
+    getProgressBarWidth,
+    isProgressBarMode,
+    isProgressPercentVisible,
+    isProgressUsageVisible,
+    type ProgressBarMode
+} from './progress-bar-display';
 
 export type UsageDisplayMode = 'time' | ProgressBarMode;
-
 
 const PROGRESS_TOGGLE_KEYBIND: CustomKeybind = { key: 'p', label: '(p)rogress toggle', action: 'toggle-progress' };
 const INVERT_TOGGLE_KEYBIND: CustomKeybind = { key: 'v', label: 'in(v)ert fill', action: 'toggle-invert' };
@@ -125,9 +124,7 @@ export function getUsagePercentCustomKeybinds(item?: WidgetItem): CustomKeybind[
     return keybinds;
 }
 
-interface UsageTimerKeybindOptions {
-    includeUsageToggle?: boolean;
-}
+interface UsageTimerKeybindOptions { includeUsageToggle?: boolean }
 
 export function getUsageTimerCustomKeybinds(item?: WidgetItem, options: UsageTimerKeybindOptions = {}): CustomKeybind[] {
     const keybinds = [PROGRESS_TOGGLE_KEYBIND];

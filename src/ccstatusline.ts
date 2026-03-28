@@ -1,12 +1,6 @@
 #!/usr/bin/env node
 import chalk from 'chalk';
 
-import { runTUI } from './tui';
-import type {
-    SkillsMetrics,
-    SpeedMetrics,
-    TokenMetrics
-} from './types';
 import type { RenderContext } from './types/RenderContext';
 import type { StatusJSON } from './types/StatusJSON';
 import { StatusJSONSchema } from './types/StatusJSON';
@@ -37,6 +31,12 @@ import {
     isWidgetSpeedWindowEnabled
 } from './utils/speed-window';
 import { prefetchUsageDataIfNeeded } from './utils/usage-prefetch';
+import { runTUI } from './tui';
+import type {
+    SkillsMetrics,
+    SpeedMetrics,
+    TokenMetrics
+} from './types';
 
 function hasSessionDurationInStatusJson(data: StatusJSON): boolean {
     const durationMs = data.cost?.total_duration_ms;

@@ -24,8 +24,10 @@ export function cycleProgressBarMode(currentMode: ProgressBarMode): ProgressBarM
 }
 
 export function getProgressBarWidth(mode: ProgressBarMode): number {
-    if (mode === 'progress') return 32;
-    if (mode === 'progress-xs') return 5;
+    if (mode === 'progress')
+        return 32;
+    if (mode === 'progress-xs')
+        return 5;
     return 16;
 }
 

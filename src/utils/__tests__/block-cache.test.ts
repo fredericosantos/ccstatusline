@@ -1,7 +1,7 @@
-import * as fs from 'fs';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
+import * as fs from 'fs';
 import {
     afterEach,
     beforeEach,

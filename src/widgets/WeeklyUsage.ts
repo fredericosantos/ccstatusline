@@ -11,22 +11,22 @@ import {
     makeUsageProgressBar
 } from '../utils/usage';
 
-import { formatRawOrLabeledValue } from './shared/raw-or-labeled';
-import {
-    cycleUsageDisplayMode,
-    isUsageBarMode,
-    getUsageDisplayMode,
-    getUsageDisplayModifierText,
-    getUsagePercentCustomKeybinds,
-    getUsageProgressBarWidth,
-    isUsageInverted,
-    toggleUsageInverted
-} from './shared/usage-display';
 import {
     formatProgressBarText,
     isProgressPercentVisible,
     toggleProgressPercent
 } from './shared/progress-bar-display';
+import { formatRawOrLabeledValue } from './shared/raw-or-labeled';
+import {
+    cycleUsageDisplayMode,
+    getUsageDisplayMode,
+    getUsageDisplayModifierText,
+    getUsagePercentCustomKeybinds,
+    getUsageProgressBarWidth,
+    isUsageBarMode,
+    isUsageInverted,
+    toggleUsageInverted
+} from './shared/usage-display';
 
 export class WeeklyUsageWidget implements Widget {
     getDefaultColor(): string { return 'brightBlue'; }

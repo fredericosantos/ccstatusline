@@ -1,8 +1,8 @@
 import chalk from 'chalk';
 import {
     Box,
-    Text,
     render,
+    Text,
     useApp,
     useInput
 } from 'ink';
@@ -49,11 +49,11 @@ import {
     ItemsEditor,
     LineSelector,
     MainMenu,
+    type MainMenuOption,
     PowerlineSetup,
     StatusLinePreview,
     TerminalOptionsMenu,
-    TerminalWidthMenu,
-    type MainMenuOption
+    TerminalWidthMenu
 } from './components';
 
 const GITHUB_REPO_URL = 'https://github.com/fredericosantos/ccstatusline';

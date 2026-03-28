@@ -11,9 +11,9 @@ import type { WidgetItem } from '../../types/Widget';
 import {
     calculateMaxWidthsFromPreRendered,
     preRenderAllWidgets,
-    renderStatusLineWithInfo,
     type PreRenderedWidget,
-    type RenderResult
+    type RenderResult,
+    renderStatusLineWithInfo
 } from '../../utils/renderer';
 import { advanceGlobalSeparatorIndex } from '../../utils/separator-index';
 

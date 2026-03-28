@@ -12,6 +12,7 @@ import {
     getModelContextIdentifier
 } from '../utils/model-context';
 import { makeUsageProgressBar } from '../utils/usage';
+
 import {
     cycleProgressBarMode,
     formatProgressBarText,
@@ -19,9 +20,9 @@ import {
     getProgressBarWidth,
     isProgressPercentVisible,
     isProgressUsageVisible,
+    type ProgressBarMode,
     toggleProgressPercent,
-    toggleProgressUsage,
-    type ProgressBarMode
+    toggleProgressUsage
 } from './shared/progress-bar-display';
 
 function getDisplayMode(item: WidgetItem): ProgressBarMode {

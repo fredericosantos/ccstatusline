@@ -12,8 +12,8 @@ import {
 } from '../utils/git';
 import type { IdeLinkMode } from '../utils/hyperlink';
 import {
-    IDE_LINK_MODES,
     buildIdeFileUrl,
+    IDE_LINK_MODES,
     renderOsc8Link
 } from '../utils/hyperlink';
 

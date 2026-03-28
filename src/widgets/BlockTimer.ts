@@ -12,24 +12,24 @@ import {
     resolveUsageWindowWithFallback
 } from '../utils/usage';
 
-import { formatRawOrLabeledValue } from './shared/raw-or-labeled';
-import {
-    cycleUsageDisplayMode,
-    isUsageBarMode,
-    getUsageDisplayMode,
-    getUsageDisplayModifierText,
-    getUsageProgressBarWidth,
-    getUsageTimerCustomKeybinds,
-    isUsageCompact,
-    isUsageInverted,
-    toggleUsageCompact,
-    toggleUsageInverted
-} from './shared/usage-display';
 import {
     formatProgressBarText,
     isProgressPercentVisible,
     toggleProgressPercent
 } from './shared/progress-bar-display';
+import { formatRawOrLabeledValue } from './shared/raw-or-labeled';
+import {
+    cycleUsageDisplayMode,
+    getUsageDisplayMode,
+    getUsageDisplayModifierText,
+    getUsageProgressBarWidth,
+    getUsageTimerCustomKeybinds,
+    isUsageBarMode,
+    isUsageCompact,
+    isUsageInverted,
+    toggleUsageCompact,
+    toggleUsageInverted
+} from './shared/usage-display';
 
 export class BlockTimerWidget implements Widget {
     getDefaultColor(): string { return 'yellow'; }

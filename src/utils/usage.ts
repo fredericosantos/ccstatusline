@@ -1,5 +1,12 @@
 export { fetchUsageData } from './usage-fetch';
 export {
+    FIVE_HOUR_BLOCK_MS,
+    SEVEN_DAY_WINDOW_MS,
+    type UsageData,
+    type UsageError,
+    type UsageWindowMetrics
+} from './usage-types';
+export {
     formatUsageDuration,
     getUsageErrorMessage,
     getUsageWindowFromBlockMetrics,
@@ -9,10 +16,3 @@ export {
     resolveUsageWindowWithFallback,
     resolveWeeklyUsageWindow
 } from './usage-windows';
-export {
-    FIVE_HOUR_BLOCK_MS,
-    SEVEN_DAY_WINDOW_MS,
-    type UsageData,
-    type UsageError,
-    type UsageWindowMetrics
-} from './usage-types';
