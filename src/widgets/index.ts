@@ -20,6 +20,8 @@ export { LinkWidget } from './Link';
 export { ModelWidget } from './Model';
 export { OutputSpeedWidget } from './OutputSpeed';
 export { OutputStyleWidget } from './OutputStyle';
+export { ProjectCostWidget } from './ProjectCost';
+export { ProjectTokensCachedWidget } from './ProjectTokensCached';
 export { SessionClockWidget } from './SessionClock';
 export { SessionCostWidget } from './SessionCost';
 export { SessionNameWidget } from './SessionName';

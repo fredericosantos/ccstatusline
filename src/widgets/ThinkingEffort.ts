@@ -37,10 +37,10 @@ function resolveThinkingEffortFromSettings(): ThinkingEffortLevel | undefined {
     return undefined;
 }
 
-function resolveThinkingEffort(context: RenderContext): ThinkingEffortLevel {
+function resolveThinkingEffort(context: RenderContext): ThinkingEffortLevel | null {
     return getTranscriptThinkingEffort(context.data?.transcript_path)
         ?? resolveThinkingEffortFromSettings()
-        ?? 'medium';
+        ?? null;
 }
 
 export class ThinkingEffortWidget implements Widget {
@@ -58,6 +58,9 @@ export class ThinkingEffortWidget implements Widget {
         }
 
         const effort = resolveThinkingEffort(context);
+        if (!effort || effort === 'medium') {
+            return null;
+        }
         return item.rawValue ? effort : `Thinking: ${effort}`;
     }
 

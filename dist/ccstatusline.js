@@ -59941,15 +59941,18 @@ class ModelWidget {
     return { displayText: this.getDisplayName() };
   }
   render(item, context, settings) {
+    const shortName = item.metadata?.shortName === "true";
     if (context.isPreview) {
-      return item.rawValue ? "Claude" : "Model: Claude";
+      const preview = shortName ? "Opus" : "Claude";
+      return item.rawValue ? preview : `Model: ${preview}`;
     }
     const model = context.data?.model;
-    const modelDisplayName = typeof model === "string" ? model : model?.display_name ?? model?.id;
-    if (modelDisplayName) {
-      return item.rawValue ? modelDisplayName : `Model: ${modelDisplayName}`;
+    const fullName = typeof model === "string" ? model : model?.display_name ?? model?.id;
+    if (!fullName) {
+      return null;
     }
-    return null;
+    const displayName = shortName ? fullName.split(/\s+/)[0] ?? fullName : fullName;
+    return item.rawValue ? displayName : `Model: ${displayName}`;
   }
   supportsRawValue() {
     return true;
@@ -60028,6 +60031,245 @@ class OutputStyleWidget {
     return true;
   }
 }
+
+// src/utils/pricing.ts
+function getPricing(modelId) {
+  if (!modelId) {
+    return SONNET;
+  }
+  const normalized = modelId.toLowerCase().replace(/\[.*?\]/g, "").replace(/-\d{8}$/, "");
+  for (const [key, pricing] of Object.entries(PRICING)) {
+    if (normalized.startsWith(key)) {
+      return pricing;
+    }
+  }
+  return SONNET;
+}
+function calcCost(model, u) {
+  const p = getPricing(model);
+  return u.input * p.input + u.output * p.output + u.cacheWrite * p.cacheWrite + u.cacheRead * p.cacheRead;
+}
+var OPUS, SONNET, HAIKU, PRICING;
+var init_pricing = __esm(() => {
+  OPUS = { input: 0.000015, output: 0.000075, cacheWrite: 0.00001875, cacheRead: 0.0000015 };
+  SONNET = { input: 0.000003, output: 0.000015, cacheWrite: 0.00000375, cacheRead: 0.0000003 };
+  HAIKU = { input: 0.000001, output: 0.000005, cacheWrite: 0.00000125, cacheRead: 0.0000001 };
+  PRICING = {
+    "claude-opus-4-7": OPUS,
+    "claude-opus-4-6": OPUS,
+    "claude-opus-4-5": OPUS,
+    "claude-opus-4-1": OPUS,
+    "claude-opus-4": OPUS,
+    "claude-opus": OPUS,
+    "claude-sonnet-4-6": SONNET,
+    "claude-sonnet-4-5": SONNET,
+    "claude-sonnet-4": SONNET,
+    "claude-3-5-sonnet": SONNET,
+    "claude-sonnet": SONNET,
+    "claude-haiku-4-5": HAIKU,
+    "claude-3-5-haiku": HAIKU,
+    "claude-haiku": HAIKU,
+    "claude-3-opus": OPUS
+  };
+});
+
+// src/utils/project-cost.ts
+import { createHash as createHash2 } from "node:crypto";
+import * as fs9 from "node:fs";
+import * as os8 from "node:os";
+import * as path8 from "node:path";
+function cacheFilePath(cwd2) {
+  const hash2 = createHash2("sha1").update(cwd2).digest("hex").slice(0, 16);
+  return path8.join(cacheDir, `project-cost-${hash2}.json`);
+}
+function readCache(cwd2) {
+  try {
+    const raw = fs9.readFileSync(cacheFilePath(cwd2), "utf8");
+    const parsed = JSON.parse(raw);
+    if (Date.now() - parsed.computedAt < CACHE_TTL_MS) {
+      return parsed;
+    }
+  } catch {}
+  return null;
+}
+function writeCache(cwd2, data) {
+  try {
+    fs9.mkdirSync(cacheDir, { recursive: true });
+    fs9.writeFileSync(cacheFilePath(cwd2), JSON.stringify(data));
+  } catch {}
+}
+function encodeCwd(cwd2) {
+  return cwd2.replace(/\//g, "-");
+}
+function listJsonlFiles(projectDir) {
+  try {
+    return fs9.readdirSync(projectDir).filter((f) => f.endsWith(".jsonl")).map((f) => path8.join(projectDir, f));
+  } catch {
+    return [];
+  }
+}
+function scanProjectDir(projectDir) {
+  let cost = 0;
+  let cachedTokens = 0;
+  for (const file2 of listJsonlFiles(projectDir)) {
+    let content;
+    try {
+      content = fs9.readFileSync(file2, "utf8");
+    } catch {
+      continue;
+    }
+    for (const line of content.split(`
+`)) {
+      if (!line) {
+        continue;
+      }
+      let data;
+      try {
+        data = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const usage = data.message?.usage;
+      if (!usage || data.type !== "assistant") {
+        continue;
+      }
+      const input = usage.input_tokens ?? 0;
+      const output = usage.output_tokens ?? 0;
+      const cacheWrite = usage.cache_creation_input_tokens ?? 0;
+      const cacheRead = usage.cache_read_input_tokens ?? 0;
+      cost += calcCost(data.message?.model, { input, output, cacheWrite, cacheRead });
+      cachedTokens += cacheWrite + cacheRead;
+    }
+  }
+  return { cost, cachedTokens };
+}
+function getProjectCost(cwd2) {
+  if (!cwd2) {
+    return null;
+  }
+  const cached2 = readCache(cwd2);
+  if (cached2) {
+    return { cost: cached2.cost, cachedTokens: cached2.cachedTokens };
+  }
+  const projectDir = path8.join(os8.homedir(), ".claude", "projects", encodeCwd(cwd2));
+  if (!fs9.existsSync(projectDir)) {
+    return null;
+  }
+  const result2 = scanProjectDir(projectDir);
+  writeCache(cwd2, { ...result2, computedAt: Date.now() });
+  return result2;
+}
+var CACHE_TTL_MS = 30000, cacheDir;
+var init_project_cost = __esm(() => {
+  init_pricing();
+  cacheDir = path8.join(os8.homedir(), ".cache", "ccstatusline");
+});
+
+// src/widgets/ProjectCost.ts
+function formatCost(cost) {
+  if (cost >= 1000) {
+    return `$${(cost / 1000).toFixed(1)}k`;
+  }
+  if (cost >= 100) {
+    return `$${cost.toFixed(0)}`;
+  }
+  if (cost >= 10) {
+    return `$${cost.toFixed(1)}`;
+  }
+  return `$${cost.toFixed(2)}`;
+}
+
+class ProjectCostWidget {
+  getDefaultColor() {
+    return "green";
+  }
+  getDescription() {
+    return "All-time total cost (USD) for the current project, scanned from ~/.claude/projects/. Cached 30s.";
+  }
+  getDisplayName() {
+    return "Project Cost";
+  }
+  getCategory() {
+    return "Session";
+  }
+  getEditorDisplay(_item) {
+    return { displayText: this.getDisplayName() };
+  }
+  render(item, context, _settings) {
+    if (context.isPreview) {
+      return item.rawValue ? "$42.17" : "Project: $42.17";
+    }
+    const cwd2 = context.data?.workspace?.current_dir ?? context.data?.cwd;
+    const result2 = getProjectCost(cwd2);
+    if (!result2) {
+      return null;
+    }
+    const formatted = formatCost(result2.cost);
+    return item.rawValue ? formatted : `Project: ${formatted}`;
+  }
+  supportsRawValue() {
+    return true;
+  }
+  supportsColors(_item) {
+    return true;
+  }
+}
+var init_ProjectCost = __esm(() => {
+  init_project_cost();
+});
+
+// src/widgets/ProjectTokensCached.ts
+function formatTokens2(n) {
+  if (n >= 1e9) {
+    return `${(n / 1e9).toFixed(1)}B`;
+  }
+  if (n >= 1e6) {
+    return `${(n / 1e6).toFixed(1)}M`;
+  }
+  if (n >= 1000) {
+    return `${(n / 1000).toFixed(1)}k`;
+  }
+  return `${n}`;
+}
+
+class ProjectTokensCachedWidget {
+  getDefaultColor() {
+    return "cyan";
+  }
+  getDescription() {
+    return "All-time cached tokens (read + write) for the current project, scanned from ~/.claude/projects/. Shares the 30s project-cost cache.";
+  }
+  getDisplayName() {
+    return "Project Cached Tokens";
+  }
+  getCategory() {
+    return "Session";
+  }
+  getEditorDisplay(_item) {
+    return { displayText: this.getDisplayName() };
+  }
+  render(item, context, _settings) {
+    if (context.isPreview) {
+      return item.rawValue ? "12.4M" : "Proj Cached: 12.4M";
+    }
+    const cwd2 = context.data?.workspace?.current_dir ?? context.data?.cwd;
+    const result2 = getProjectCost(cwd2);
+    if (!result2) {
+      return null;
+    }
+    const formatted = formatTokens2(result2.cachedTokens);
+    return item.rawValue ? formatted : `Proj Cached: ${formatted}`;
+  }
+  supportsRawValue() {
+    return true;
+  }
+  supportsColors(_item) {
+    return true;
+  }
+}
+var init_ProjectTokensCached = __esm(() => {
+  init_project_cost();
+});
 
 // src/widgets/SessionClock.ts
 function formatDurationFromMs(durationMs) {
@@ -60119,7 +60361,7 @@ class SessionCostWidget {
 }
 
 // src/widgets/SessionName.ts
-import * as fs9 from "fs";
+import * as fs10 from "fs";
 
 class SessionNameWidget {
   getDefaultColor() {
@@ -60146,7 +60388,7 @@ class SessionNameWidget {
       return null;
     }
     try {
-      const content = fs9.readFileSync(transcriptPath, "utf-8");
+      const content = fs10.readFileSync(transcriptPath, "utf-8");
       const lines = content.split(`
 `);
       for (let i = lines.length - 1;i >= 0; i--) {
@@ -60508,7 +60750,7 @@ function resolveThinkingEffortFromSettings() {
   return;
 }
 function resolveThinkingEffort(context) {
-  return getTranscriptThinkingEffort(context.data?.transcript_path) ?? resolveThinkingEffortFromSettings() ?? "medium";
+  return getTranscriptThinkingEffort(context.data?.transcript_path) ?? resolveThinkingEffortFromSettings() ?? null;
 }
 
 class ThinkingEffortWidget {
@@ -60533,6 +60775,9 @@ May be incorrect when multiple Claude Code sessions are running due to current C
       return item.rawValue ? "high" : "Thinking: high";
     }
     const effort = resolveThinkingEffort(context);
+    if (!effort || effort === "medium") {
+      return null;
+    }
     return item.rawValue ? effort : `Thinking: ${effort}`;
   }
   supportsRawValue() {
@@ -61108,6 +61353,8 @@ var init_widgets = __esm(async () => {
   init_GitInsertions();
   init_GitRootDir();
   init_GitWorktree();
+  init_ProjectCost();
+  init_ProjectTokensCached();
   init_SessionName();
   init_SessionUsage();
   init_TerminalWidth();
@@ -61158,6 +61405,8 @@ var init_widget_manifest = __esm(async () => {
     { type: "context-percentage-usable", create: () => new ContextPercentageUsableWidget },
     { type: "session-clock", create: () => new SessionClockWidget },
     { type: "session-cost", create: () => new SessionCostWidget },
+    { type: "project-cost", create: () => new ProjectCostWidget },
+    { type: "project-tokens-cached", create: () => new ProjectTokensCachedWidget },
     { type: "block-timer", create: () => new BlockTimerWidget },
     { type: "terminal-width", create: () => new TerminalWidthWidget },
     { type: "version", create: () => new VersionWidget },
@@ -61367,11 +61616,11 @@ var init_hooks = __esm(async () => {
 });
 
 // src/utils/config.ts
-import * as fs10 from "fs";
-import * as os8 from "os";
-import * as path8 from "path";
+import * as fs11 from "fs";
+import * as os9 from "os";
+import * as path9 from "path";
 function initConfigPath(filePath) {
-  settingsPath = filePath ? path8.resolve(filePath) : DEFAULT_SETTINGS_PATH;
+  settingsPath = filePath ? path9.resolve(filePath) : DEFAULT_SETTINGS_PATH;
 }
 function getConfigPath() {
   return settingsPath;
@@ -61380,13 +61629,13 @@ function isCustomConfigPath() {
   return settingsPath !== DEFAULT_SETTINGS_PATH;
 }
 function getSettingsPaths() {
-  const configDir = path8.dirname(settingsPath);
-  const parsedPath = path8.parse(settingsPath);
+  const configDir = path9.dirname(settingsPath);
+  const parsedPath = path9.parse(settingsPath);
   const backupBaseName = parsedPath.ext ? `${parsedPath.name}.bak` : `${parsedPath.base}.bak`;
   return {
     configDir,
     settingsPath,
-    settingsBackupPath: path8.join(configDir, backupBaseName)
+    settingsBackupPath: path9.join(configDir, backupBaseName)
   };
 }
 async function writeSettingsJson(settings, paths) {
@@ -61395,7 +61644,7 @@ async function writeSettingsJson(settings, paths) {
 }
 async function backupBadSettings(paths) {
   try {
-    if (fs10.existsSync(paths.settingsPath)) {
+    if (fs11.existsSync(paths.settingsPath)) {
       const content = await readFile4(paths.settingsPath, "utf-8");
       await writeFile2(paths.settingsBackupPath, content, "utf-8");
       console.error(`Bad settings backed up to ${paths.settingsBackupPath}`);
@@ -61425,7 +61674,7 @@ async function recoverWithDefaults(paths) {
 async function loadSettings() {
   const paths = getSettingsPaths();
   try {
-    if (!fs10.existsSync(paths.settingsPath))
+    if (!fs11.existsSync(paths.settingsPath))
       return await writeDefaultSettings(paths);
     const content = await readFile4(paths.settingsPath, "utf-8");
     let rawData;
@@ -61475,10 +61724,10 @@ var readFile4, writeFile2, mkdir2, DEFAULT_SETTINGS_PATH, settingsPath;
 var init_config = __esm(() => {
   init_Settings();
   init_migrations();
-  readFile4 = fs10.promises.readFile;
-  writeFile2 = fs10.promises.writeFile;
-  mkdir2 = fs10.promises.mkdir;
-  DEFAULT_SETTINGS_PATH = path8.join(os8.homedir(), ".config", "ccstatusline", "settings.json");
+  readFile4 = fs11.promises.readFile;
+  writeFile2 = fs11.promises.writeFile;
+  mkdir2 = fs11.promises.mkdir;
+  DEFAULT_SETTINGS_PATH = path9.join(os9.homedir(), ".config", "ccstatusline", "settings.json");
   settingsPath = DEFAULT_SETTINGS_PATH;
 });
 
@@ -63360,23 +63609,23 @@ function advanceGlobalSeparatorIndex(currentIndex, widgets) {
 }
 
 // src/utils/skills.ts
-import * as fs11 from "fs";
-import * as os9 from "os";
-import * as path9 from "path";
+import * as fs12 from "fs";
+import * as os10 from "os";
+import * as path10 from "path";
 var EMPTY = { totalInvocations: 0, uniqueSkills: [], lastSkill: null };
 function getSkillsDir() {
-  return path9.join(os9.homedir(), ".cache", "ccstatusline", "skills");
+  return path10.join(os10.homedir(), ".cache", "ccstatusline", "skills");
 }
 function getSkillsFilePath(sessionId) {
-  return path9.join(getSkillsDir(), `skills-${sessionId}.jsonl`);
+  return path10.join(getSkillsDir(), `skills-${sessionId}.jsonl`);
 }
 function getSkillsMetrics(sessionId) {
   const filePath = getSkillsFilePath(sessionId);
-  if (!fs11.existsSync(filePath)) {
+  if (!fs12.existsSync(filePath)) {
     return EMPTY;
   }
   try {
-    const invocations = fs11.readFileSync(filePath, "utf-8").trim().split(`
+    const invocations = fs12.readFileSync(filePath, "utf-8").trim().split(`
 `).filter((line) => line.trim()).map((line) => {
       try {
         return JSON.parse(line);
@@ -63706,7 +63955,7 @@ init_config();
 
 // src/utils/open-url.ts
 import { spawnSync } from "child_process";
-import * as os10 from "os";
+import * as os11 from "os";
 function runOpenCommand(command, args) {
   const result2 = spawnSync(command, args, {
     stdio: "ignore",
@@ -63765,7 +64014,7 @@ function openExternalUrl(url2) {
       error: "Only http(s) URLs are supported"
     };
   }
-  const platform3 = os10.platform();
+  const platform3 = os11.platform();
   const plans = PLATFORM_OPEN_PLANS[platform3];
   if (!plans) {
     return {
@@ -63793,9 +64042,9 @@ function openExternalUrl(url2) {
 
 // src/utils/powerline.ts
 import { execSync as execSync6 } from "child_process";
-import * as fs12 from "fs";
-import * as os11 from "os";
-import * as path10 from "path";
+import * as fs13 from "fs";
+import * as os12 from "os";
+import * as path11 from "path";
 var fontsInstalledThisSession = false;
 function checkPowerlineFonts() {
   if (process.env.DEBUG_FONT_INSTALL === "1" && !fontsInstalledThisSession) {
@@ -63811,24 +64060,24 @@ function checkPowerlineFonts() {
       leftArrow: "",
       leftThinArrow: ""
     };
-    const platform4 = os11.platform();
+    const platform4 = os12.platform();
     let fontPaths = [];
     if (platform4 === "darwin") {
       fontPaths = [
-        path10.join(os11.homedir(), "Library", "Fonts"),
+        path11.join(os12.homedir(), "Library", "Fonts"),
         "/Library/Fonts",
         "/System/Library/Fonts"
       ];
     } else if (platform4 === "linux") {
       fontPaths = [
-        path10.join(os11.homedir(), ".local", "share", "fonts"),
-        path10.join(os11.homedir(), ".fonts"),
+        path11.join(os12.homedir(), ".local", "share", "fonts"),
+        path11.join(os12.homedir(), ".fonts"),
         "/usr/share/fonts",
         "/usr/local/share/fonts"
       ];
     } else if (platform4 === "win32") {
       fontPaths = [
-        path10.join(os11.homedir(), "AppData", "Local", "Microsoft", "Windows", "Fonts"),
+        path11.join(os12.homedir(), "AppData", "Local", "Microsoft", "Windows", "Fonts"),
         "C:\\Windows\\Fonts"
       ];
     }
@@ -63844,9 +64093,9 @@ function checkPowerlineFonts() {
       /fira.*code.*nerd/i
     ];
     for (const fontPath of fontPaths) {
-      if (fs12.existsSync(fontPath)) {
+      if (fs13.existsSync(fontPath)) {
         try {
-          const files = fs12.readdirSync(fontPath);
+          const files = fs13.readdirSync(fontPath);
           for (const file2 of files) {
             for (const pattern of powerlineFontPatterns) {
               if (pattern.test(file2)) {
@@ -63881,7 +64130,7 @@ async function checkPowerlineFontsAsync() {
     if (quickCheck.installed) {
       return quickCheck;
     }
-    const platform4 = os11.platform();
+    const platform4 = os12.platform();
     if (platform4 === "linux" || platform4 === "darwin") {
       try {
         const { exec: exec2 } = await import("child_process");
@@ -63904,36 +64153,36 @@ async function checkPowerlineFontsAsync() {
 async function installPowerlineFonts() {
   await Promise.resolve();
   try {
-    const platform4 = os11.platform();
+    const platform4 = os12.platform();
     let fontDir;
     if (platform4 === "darwin") {
-      fontDir = path10.join(os11.homedir(), "Library", "Fonts");
+      fontDir = path11.join(os12.homedir(), "Library", "Fonts");
     } else if (platform4 === "linux") {
-      fontDir = path10.join(os11.homedir(), ".local", "share", "fonts");
+      fontDir = path11.join(os12.homedir(), ".local", "share", "fonts");
     } else if (platform4 === "win32") {
-      fontDir = path10.join(os11.homedir(), "AppData", "Local", "Microsoft", "Windows", "Fonts");
+      fontDir = path11.join(os12.homedir(), "AppData", "Local", "Microsoft", "Windows", "Fonts");
     } else {
       return {
         success: false,
         message: "Unsupported platform for font installation"
       };
     }
-    if (!fs12.existsSync(fontDir)) {
-      fs12.mkdirSync(fontDir, { recursive: true });
+    if (!fs13.existsSync(fontDir)) {
+      fs13.mkdirSync(fontDir, { recursive: true });
     }
-    const tempDir = path10.join(os11.tmpdir(), `ccstatusline-powerline-fonts-${Date.now()}`);
+    const tempDir = path11.join(os12.tmpdir(), `ccstatusline-powerline-fonts-${Date.now()}`);
     try {
-      if (fs12.existsSync(tempDir)) {
-        fs12.rmSync(tempDir, { recursive: true, force: true });
+      if (fs13.existsSync(tempDir)) {
+        fs13.rmSync(tempDir, { recursive: true, force: true });
       }
       execSync6(`git clone --depth=1 https://github.com/powerline/fonts.git "${tempDir}"`, {
         stdio: "pipe",
         encoding: "utf8"
       });
       if (platform4 === "darwin" || platform4 === "linux") {
-        const installScript = path10.join(tempDir, "install.sh");
-        if (fs12.existsSync(installScript)) {
-          fs12.chmodSync(installScript, 493);
+        const installScript = path11.join(tempDir, "install.sh");
+        if (fs13.existsSync(installScript)) {
+          fs13.chmodSync(installScript, 493);
           execSync6(`cd "${tempDir}" && ./install.sh`, {
             stdio: "pipe",
             encoding: "utf8",
@@ -63959,10 +64208,10 @@ async function installPowerlineFonts() {
         }
       } else {
         let findFontFiles = function(dir) {
-          const files = fs12.readdirSync(dir);
+          const files = fs13.readdirSync(dir);
           for (const file2 of files) {
-            const filePath = path10.join(dir, file2);
-            const stat = fs12.statSync(filePath);
+            const filePath = path11.join(dir, file2);
+            const stat = fs13.statSync(filePath);
             if (stat.isDirectory() && !file2.startsWith(".")) {
               findFontFiles(filePath);
             } else if (file2.endsWith(".ttf") || file2.endsWith(".otf")) {
@@ -63976,10 +64225,10 @@ async function installPowerlineFonts() {
         findFontFiles(tempDir);
         let installedCount = 0;
         for (const fontFile of fontFiles) {
-          const fileName = path10.basename(fontFile);
-          const destPath = path10.join(fontDir, fileName);
+          const fileName = path11.basename(fontFile);
+          const destPath = path11.join(fontDir, fileName);
           try {
-            fs12.copyFileSync(fontFile, destPath);
+            fs13.copyFileSync(fontFile, destPath);
             installedCount++;
           } catch {}
         }
@@ -63997,9 +64246,9 @@ async function installPowerlineFonts() {
         message: "Platform-specific installation not implemented"
       };
     } finally {
-      if (fs12.existsSync(tempDir)) {
+      if (fs13.existsSync(tempDir)) {
         try {
-          fs12.rmSync(tempDir, { recursive: true, force: true });
+          fs13.rmSync(tempDir, { recursive: true, force: true });
         } catch {}
       }
     }
@@ -66955,7 +67204,7 @@ var MainMenu = ({
 // src/tui/components/PowerlineSetup.tsx
 await init_build2();
 var import_react42 = __toESM(require_react(), 1);
-import * as os12 from "os";
+import * as os13 from "os";
 
 // src/utils/powerline-settings.ts
 init_colors();
@@ -67713,7 +67962,7 @@ var PowerlineSetup = ({
                   }, undefined, false, undefined, this)
                 ]
               }, undefined, true, undefined, this),
-              os12.platform() === "darwin" && /* @__PURE__ */ jsx_dev_runtime17.jsxDEV(jsx_dev_runtime17.Fragment, {
+              os13.platform() === "darwin" && /* @__PURE__ */ jsx_dev_runtime17.jsxDEV(jsx_dev_runtime17.Fragment, {
                 children: [
                   /* @__PURE__ */ jsx_dev_runtime17.jsxDEV(Text, {
                     dimColor: true,
@@ -67729,7 +67978,7 @@ var PowerlineSetup = ({
                   }, undefined, false, undefined, this)
                 ]
               }, undefined, true, undefined, this),
-              os12.platform() === "linux" && /* @__PURE__ */ jsx_dev_runtime17.jsxDEV(jsx_dev_runtime17.Fragment, {
+              os13.platform() === "linux" && /* @__PURE__ */ jsx_dev_runtime17.jsxDEV(jsx_dev_runtime17.Fragment, {
                 children: [
                   /* @__PURE__ */ jsx_dev_runtime17.jsxDEV(Text, {
                     dimColor: true,
@@ -67745,7 +67994,7 @@ var PowerlineSetup = ({
                   }, undefined, false, undefined, this)
                 ]
               }, undefined, true, undefined, this),
-              os12.platform() === "win32" && /* @__PURE__ */ jsx_dev_runtime17.jsxDEV(jsx_dev_runtime17.Fragment, {
+              os13.platform() === "win32" && /* @__PURE__ */ jsx_dev_runtime17.jsxDEV(jsx_dev_runtime17.Fragment, {
                 children: [
                   /* @__PURE__ */ jsx_dev_runtime17.jsxDEV(Text, {
                     dimColor: true,
@@ -68981,16 +69230,16 @@ async function handleHook() {
       return;
     }
     const filePath = getSkillsFilePath(sessionId);
-    const fs13 = await import("fs");
-    const path11 = await import("path");
-    fs13.mkdirSync(path11.dirname(filePath), { recursive: true });
+    const fs14 = await import("fs");
+    const path12 = await import("path");
+    fs14.mkdirSync(path12.dirname(filePath), { recursive: true });
     const entry = JSON.stringify({
       timestamp: new Date().toISOString(),
       session_id: sessionId,
       skill: skillName,
       source: data.hook_event_name
     });
-    fs13.appendFileSync(filePath, entry + `
+    fs14.appendFileSync(filePath, entry + `
 `);
   } catch {}
   console.log("{}");
