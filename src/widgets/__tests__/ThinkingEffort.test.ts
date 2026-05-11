@@ -151,7 +151,7 @@ describe('ThinkingEffortWidget', () => {
                 ].join('\n'),
                 settingsValue: { effortLevel: 'medium' }
             });
-            expect(result).toBe('Thinking: medium');
+            expect(result).toBeNull();
         });
     });
 
@@ -183,27 +183,27 @@ describe('ThinkingEffortWidget', () => {
             expect(result).toBe('Thinking: max');
         });
 
-        it('defaults to medium when effortLevel is not set', () => {
+        it('renders nothing when effortLevel is not set', () => {
             const result = render();
-            expect(result).toBe('Thinking: medium');
+            expect(result).toBeNull();
         });
 
-        it('defaults to medium when effortLevel is invalid', () => {
+        it('renders nothing when effortLevel is invalid', () => {
             const result = render({ settingsValue: { effortLevel: 'ultra' } });
-            expect(result).toBe('Thinking: medium');
+            expect(result).toBeNull();
         });
 
-        it('defaults to medium when settings read fails', () => {
+        it('renders nothing when settings read fails', () => {
             mockedLoadSettings.mockImplementation(() => {
                 throw new Error('settings unavailable');
             });
             const result = render();
-            expect(result).toBe('Thinking: medium');
+            expect(result).toBeNull();
         });
 
-        it('defaults to medium when the latest /model output has no effort and settings are missing', () => {
+        it('renders nothing when the latest /model output has no effort and settings are missing', () => {
             const result = render({ fileContent: makeTranscriptEntry(MODEL_WITHOUT_EFFORT) });
-            expect(result).toBe('Thinking: medium');
+            expect(result).toBeNull();
         });
     });
 });
