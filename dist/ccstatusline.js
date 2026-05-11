@@ -60111,6 +60111,7 @@ function listJsonlFiles(projectDir) {
 function scanProjectDir(projectDir) {
   let cost = 0;
   let cachedTokens = 0;
+  const seen = new Set;
   for (const file2 of listJsonlFiles(projectDir)) {
     let content;
     try {
@@ -60133,11 +60134,27 @@ function scanProjectDir(projectDir) {
       if (!usage || data.type !== "assistant") {
         continue;
       }
+      const messageId = data.message?.id;
+      const requestId = data.requestId;
+      if (messageId && requestId) {
+        const key = `${messageId}:${requestId}`;
+        if (seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+      } else if (messageId) {
+        if (seen.has(messageId)) {
+          continue;
+        }
+        seen.add(messageId);
+      }
       const input = usage.input_tokens ?? 0;
       const output = usage.output_tokens ?? 0;
       const cacheWrite = usage.cache_creation_input_tokens ?? 0;
       const cacheRead = usage.cache_read_input_tokens ?? 0;
-      cost += calcCost(data.message?.model, { input, output, cacheWrite, cacheRead });
+      const isLongContext = (data.message?.model ?? "").includes("[1m]");
+      const turnCost = calcCost(data.message?.model, { input, output, cacheWrite, cacheRead });
+      cost += isLongContext ? turnCost * 2 : turnCost;
       cachedTokens += cacheWrite + cacheRead;
     }
   }

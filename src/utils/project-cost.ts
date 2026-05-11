@@ -47,7 +47,9 @@ function encodeCwd(cwd: string): string {
 
 interface AssistantLine {
     type?: string;
+    requestId?: string;
     message?: {
+        id?: string;
         model?: string;
         usage?: {
             input_tokens?: number;
@@ -71,6 +73,7 @@ function listJsonlFiles(projectDir: string): string[] {
 function scanProjectDir(projectDir: string): { cost: number; cachedTokens: number } {
     let cost = 0;
     let cachedTokens = 0;
+    const seen = new Set<string>();
 
     for (const file of listJsonlFiles(projectDir)) {
         let content: string;
@@ -96,12 +99,29 @@ function scanProjectDir(projectDir: string): { cost: number; cachedTokens: numbe
                 continue;
             }
 
+            const messageId = data.message?.id;
+            const requestId = data.requestId;
+            if (messageId && requestId) {
+                const key = `${messageId}:${requestId}`;
+                if (seen.has(key)) {
+                    continue;
+                }
+                seen.add(key);
+            } else if (messageId) {
+                if (seen.has(messageId)) {
+                    continue;
+                }
+                seen.add(messageId);
+            }
+
             const input = usage.input_tokens ?? 0;
             const output = usage.output_tokens ?? 0;
             const cacheWrite = usage.cache_creation_input_tokens ?? 0;
             const cacheRead = usage.cache_read_input_tokens ?? 0;
 
-            cost += calcCost(data.message?.model, { input, output, cacheWrite, cacheRead });
+            const isLongContext = (data.message?.model ?? '').includes('[1m]');
+            const turnCost = calcCost(data.message?.model, { input, output, cacheWrite, cacheRead });
+            cost += isLongContext ? turnCost * 2 : turnCost;
             cachedTokens += cacheWrite + cacheRead;
         }
     }
