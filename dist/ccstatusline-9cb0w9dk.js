@@ -15269,6 +15269,16 @@ function applyParensDim(text, bold) {
   const intensityReset = bold ? "\x1B[22;1m" : "\x1B[22m";
   return text.replace(/\([^()]*\)/g, (span) => `\x1B[2m${span}${intensityReset}`);
 }
+function reopenOuterColors(text, fgCode, bgCode) {
+  let out = text;
+  if (fgCode) {
+    out = out.split("\x1B[39m").join("\x1B[39m" + fgCode);
+  }
+  if (bgCode) {
+    out = out.split("\x1B[49m").join("\x1B[49m" + bgCode);
+  }
+  return out;
+}
 function applyColors(text, foregroundColor, backgroundColor, bold, colorLevel = "ansi16", dim) {
   const styledText = dim === "parens" ? applyParensDim(text, bold) : text;
   if (!foregroundColor && !backgroundColor && !bold && dim !== true) {
@@ -15276,6 +15286,8 @@ function applyColors(text, foregroundColor, backgroundColor, bold, colorLevel = 
   }
   let prefix = "";
   let suffix = "";
+  let outerFg = "";
+  let outerBg = "";
   if (bold) {
     prefix += "\x1B[1m";
   }
@@ -15290,6 +15302,7 @@ function applyColors(text, foregroundColor, backgroundColor, bold, colorLevel = 
     if (bgCode) {
       prefix += bgCode;
       suffix = "\x1B[49m" + suffix;
+      outerBg = bgCode;
     }
   }
   if (foregroundColor) {
@@ -15301,9 +15314,10 @@ function applyColors(text, foregroundColor, backgroundColor, bold, colorLevel = 
     if (fgCode) {
       prefix += fgCode;
       suffix = "\x1B[39m" + suffix;
+      outerFg = fgCode;
     }
   }
-  return prefix + styledText + suffix;
+  return prefix + reopenOuterColors(styledText, outerFg, outerBg) + suffix;
 }
 function getColorAnsiCode(colorName, colorLevel = "ansi16", isBackground = false) {
   if (!colorName)
@@ -22115,7 +22129,7 @@ function writeCachedWidth(sessionId, width, deps = defaultDeps2) {
 }
 
 // src/utils/terminal.ts
-var __dirname = "/Users/fsx/repos/ccstatusline-merge/src/utils";
+var __dirname = "/Users/fsx/repos/ccstatusline-bars/src/utils";
 var PACKAGE_VERSION = "2.2.30";
 function getPackageVersion() {
   if (/^\d+\.\d+\.\d+/.test(PACKAGE_VERSION)) {
@@ -31764,6 +31778,10 @@ function handleContextInverseAction(action, item) {
   return toggleMetadataFlag(item, INVERSE_KEY);
 }
 
+// src/types/BarStyle.ts
+var BAR_STYLES = ["dots", "pill", "line", "blocks"];
+var BarStyleSchema = _enum(BAR_STYLES);
+
 // src/utils/locales.ts
 var DEFAULT_RESET_LOCALE = "en-US";
 var COMMON_LOCALES = [
@@ -31900,6 +31918,7 @@ var SLIDER_WIDTH = 10;
 var PROGRESS_TOGGLE_KEYBIND = { key: "p", label: "(p)rogress toggle", action: "toggle-progress" };
 var INVERT_TOGGLE_KEYBIND = { key: "v", label: "in(v)ert fill", action: "toggle-invert" };
 var PERCENT_TOGGLE_KEYBIND = { key: "e", label: "show p(e)rcent", action: "toggle-percent" };
+var BAR_STYLE_KEYBIND = { key: "b", label: "(b)ar style", action: "cycle-bar-style" };
 var COMPACT_TOGGLE_KEYBIND = { key: "s", label: "(s)hort time", action: "toggle-compact" };
 var CURSOR_TOGGLE_KEYBIND = { key: "t", label: "(t)ime cursor", action: "toggle-cursor" };
 var DATE_TOGGLE_KEYBIND = { key: "t", label: "(t)imestamp", action: "toggle-date" };
@@ -31948,11 +31967,16 @@ function isUsagePercentShown(item) {
 function toggleUsagePercent(item) {
   return toggleMetadataFlag(item, "showPercent");
 }
-function formatUsageProgress(item, mode, bar, percentText) {
+function formatUsageProgress(item, mode, bar, percentText, style = "blocks") {
   if (mode === "progress-xs") {
     return isUsagePercentShown(item) ? `${bar} ${percentText}` : bar;
   }
-  return `[${bar}] ${percentText}`;
+  return style === "blocks" ? `[${bar}] ${percentText}` : `${bar} ${percentText}`;
+}
+function cycleBarStyle(item) {
+  const order = [undefined, ...BAR_STYLES];
+  const next = order[(order.findIndex((style) => style === item.metadata?.barStyle) + 1) % order.length];
+  return next ? { ...item, metadata: { ...item.metadata, barStyle: next } } : removeMetadataKeys(item, ["barStyle"]);
 }
 function isUsageInverted(item) {
   return isMetadataFlagEnabled(item, "invert");
@@ -32050,6 +32074,9 @@ function getUsageDisplayModifierText(item, options = {}) {
   } else if (isUsageInverted(item)) {
     modifiers.push("inverted");
   }
+  if (isUsageProgressMode(mode) && item.metadata?.barStyle) {
+    modifiers.push(`${item.metadata.barStyle} style`);
+  }
   if (isUsageCursorEnabled(item) && (isUsageProgressMode(mode) || isUsageSliderMode(mode))) {
     modifiers.push("time cursor");
   }
@@ -32110,6 +32137,9 @@ function getUsagePercentCustomKeybinds(item, includeCursor = true) {
       keybinds.push(PERCENT_TOGGLE_KEYBIND);
     }
   }
+  if (item && isUsageProgressMode(getUsageDisplayMode(item))) {
+    keybinds.push(BAR_STYLE_KEYBIND);
+  }
   return keybinds;
 }
 function getUsageTimerCustomKeybinds(item, options = {}) {
@@ -32120,6 +32150,9 @@ function getUsageTimerCustomKeybinds(item, options = {}) {
     keybinds.push(INVERT_TOGGLE_KEYBIND);
     if (mode === "progress-xs") {
       keybinds.push(PERCENT_TOGGLE_KEYBIND);
+    }
+    if (isUsageProgressMode(mode)) {
+      keybinds.push(BAR_STYLE_KEYBIND);
     }
   } else {
     keybinds.push(COMPACT_TOGGLE_KEYBIND);
@@ -33654,6 +33687,7 @@ var SettingsSchema = object({
   overrideBackgroundColor: string().optional(),
   overrideForegroundColor: string().optional(),
   globalBold: boolean2().default(false),
+  progressBarStyle: BarStyleSchema.optional(),
   numberFormat: GlobalNumberFormatSchema.optional(),
   gitCacheTtlSeconds: number().min(0).max(60).default(5),
   terminalWidthCacheTtlSeconds: number().min(0).max(300).default(5),
@@ -34126,7 +34160,7 @@ async function saveSettings(settings) {
   };
   await writeSettingsJson(settingsWithVersion, paths);
   try {
-    const { syncWidgetHooks } = await import("./hooks-j8pd5ns1.js");
+    const { syncWidgetHooks } = await import("./hooks-bve6n0zy.js");
     await syncWidgetHooks(settings);
   } catch {}
 }
@@ -34499,7 +34533,7 @@ async function installStatusLine({
   }
   const savedSettings = await loadSavedSettingsForHookSync();
   if (savedSettings) {
-    const { syncWidgetHooks } = await import("./hooks-j8pd5ns1.js");
+    const { syncWidgetHooks } = await import("./hooks-bve6n0zy.js");
     await syncWidgetHooks(savedSettings);
   }
 }
@@ -34517,7 +34551,7 @@ async function uninstallStatusLine() {
   }
   await saveInstallationMetadata(undefined);
   try {
-    const { removeManagedHooks } = await import("./hooks-j8pd5ns1.js");
+    const { removeManagedHooks } = await import("./hooks-bve6n0zy.js");
     await removeManagedHooks();
   } catch {}
 }
@@ -37313,6 +37347,90 @@ function makeTimerProgressBar(percent, width, options) {
   }
   return bar;
 }
+var BAR_COLORS = {
+  fill: "#D97757",
+  warn: "#E5B454",
+  danger: "#D4574A",
+  track: "#3B3936",
+  cursor: "#F4F3EE"
+};
+var WARN_AT = 75;
+var DANGER_AT = 90;
+var EIGHTHS = " ▏▎▍▌▋▊▉█";
+var FG_OFF = "\x1B[39m";
+var BG_OFF = "\x1B[49m";
+function open2(hex, background = false) {
+  const styled = (background ? source_default.bgHex(hex) : source_default.hex(hex))("x");
+  return styled.slice(0, styled.indexOf("x"));
+}
+function blend(from, to, ratio) {
+  const channel = (hex, at) => parseInt(hex.slice(at, at + 2), 16);
+  return "#" + [1, 3, 5].map((at) => Math.round(channel(from, at) + (channel(to, at) - channel(from, at)) * ratio).toString(16).padStart(2, "0")).join("");
+}
+function resolveBarStyle(item, settings) {
+  if (source_default.level === 0) {
+    return "blocks";
+  }
+  const override = item.metadata?.barStyle;
+  return BAR_STYLES.find((style) => style === override) ?? settings.progressBarStyle ?? "dots";
+}
+function getBarFillColor(usedPercent) {
+  if (usedPercent === undefined) {
+    return BAR_COLORS.fill;
+  }
+  return usedPercent >= DANGER_AT ? BAR_COLORS.danger : usedPercent >= WARN_AT ? BAR_COLORS.warn : BAR_COLORS.fill;
+}
+function makeStyledBar(percent, width, options) {
+  if (options.style === "blocks") {
+    return makeTimerProgressBar(percent, width, options);
+  }
+  const clamped = Math.max(0, Math.min(100, percent));
+  const fill = getBarFillColor(options.escalatePercent);
+  const cursorPos = options.cursorPercent === undefined ? -1 : Math.min(Math.floor(Math.max(0, Math.min(100, options.cursorPercent)) / 100 * width), width - 1);
+  const cursor = (background) => `${open2(BAR_COLORS.cursor)}${background ? open2(BAR_COLORS.track, true) : ""}│`;
+  const cells = (paint) => Array.from({ length: width }, (_, i) => i === cursorPos ? cursor(options.style === "pill") : paint(i)).join("");
+  if (options.style === "dots") {
+    const at = clamped / 100 * width;
+    return cells((i) => {
+      const color = i + 1 <= at ? fill : i < at ? blend(BAR_COLORS.track, fill, at - i) : BAR_COLORS.track;
+      return `${open2(color)}●`;
+    }) + FG_OFF;
+  }
+  if (options.style === "line") {
+    const halves = Math.round(clamped / 100 * width * 2);
+    const full = Math.floor(halves / 2);
+    return cells((i) => {
+      if (i < full) {
+        return `${open2(fill)}━`;
+      }
+      if (i === full) {
+        return halves % 2 === 1 ? `${open2(fill)}╸` : `${open2(BAR_COLORS.track)}╺`;
+      }
+      return `${open2(BAR_COLORS.track)}━`;
+    }) + FG_OFF;
+  }
+  const eighths = Math.round(clamped / 100 * width * 8);
+  const full = Math.floor(eighths / 8);
+  const body = cells((i) => {
+    if (i < full) {
+      return `${open2(fill, true)} `;
+    }
+    return i === full && eighths % 8 > 0 ? `${open2(fill)}${open2(BAR_COLORS.track, true)}${EIGHTHS.charAt(eighths % 8)}` : `${open2(BAR_COLORS.track, true)} `;
+  });
+  const leftCap = `${open2(eighths > 0 ? fill : BAR_COLORS.track)}${FG_OFF}`;
+  const rightCap = `${open2(eighths >= width * 8 ? fill : BAR_COLORS.track)}${FG_OFF}`;
+  return `${leftCap}${body}${BG_OFF}${rightCap}`;
+}
+function renderUsageBar(item, settings, mode, percent, percentText, options = {}) {
+  const style = resolveBarStyle(item, settings);
+  const escalate = options.escalate === true && item.metadata?.escalate !== "false";
+  const bar = makeStyledBar(percent, getUsageProgressBarWidth(mode), {
+    style,
+    escalatePercent: escalate ? isUsageInverted(item) ? 100 - percent : percent : undefined,
+    cursorPercent: options.cursor?.cursorPercent
+  });
+  return formatUsageProgress(item, mode, bar, percentText, style);
+}
 
 // src/widgets/BlockTimer.ts
 var NO_DATA_HIDEABLE_STATE3 = { key: "no-data", label: "when there is no active block" };
@@ -37337,6 +37455,9 @@ class BlockTimerWidget {
     };
   }
   handleEditorAction(action, item) {
+    if (action === "cycle-bar-style") {
+      return cycleBarStyle(item);
+    }
     if (action === "toggle-progress") {
       return cycleUsageDisplayMode(item, ["compact"], true);
     }
@@ -37359,9 +37480,7 @@ class BlockTimerWidget {
     if (context.isPreview) {
       const previewPercent = inverted ? 26.1 : 73.9;
       if (isUsageProgressMode(displayMode)) {
-        const barWidth = getUsageProgressBarWidth(displayMode);
-        const progressBar = makeTimerProgressBar(previewPercent, barWidth);
-        return formatRawOrLabeledValue(item, "Block ", formatUsageProgress(item, displayMode, progressBar, formatPercent(previewPercent, format)));
+        return formatRawOrLabeledValue(item, "Block ", renderUsageBar(item, settings, displayMode, previewPercent, formatPercent(previewPercent, format)));
       }
       if (isUsageSliderMode(displayMode)) {
         const slider = makeSliderBar(previewPercent);
@@ -37378,9 +37497,7 @@ class BlockTimerWidget {
       }
       const emptyPercent = formatPercent(0, format);
       if (isUsageProgressMode(displayMode)) {
-        const barWidth = getUsageProgressBarWidth(displayMode);
-        const emptyBar = "░".repeat(barWidth);
-        return formatRawOrLabeledValue(item, "Block ", formatUsageProgress(item, displayMode, emptyBar, emptyPercent));
+        return formatRawOrLabeledValue(item, "Block ", renderUsageBar(item, settings, displayMode, 0, emptyPercent));
       }
       if (isUsageSliderMode(displayMode)) {
         const emptySlider = makeSliderBar(0);
@@ -37390,10 +37507,8 @@ class BlockTimerWidget {
       return formatRawOrLabeledValue(item, "Block: ", compact ? "0h" : "0hr 0m");
     }
     if (isUsageProgressMode(displayMode)) {
-      const barWidth = getUsageProgressBarWidth(displayMode);
       const percent = inverted ? window2.remainingPercent : window2.elapsedPercent;
-      const progressBar = makeTimerProgressBar(percent, barWidth);
-      return formatRawOrLabeledValue(item, "Block ", formatUsageProgress(item, displayMode, progressBar, formatPercent(percent, format)));
+      return formatRawOrLabeledValue(item, "Block ", renderUsageBar(item, settings, displayMode, percent, formatPercent(percent, format)));
     }
     if (isUsageSliderMode(displayMode)) {
       const percent = inverted ? window2.remainingPercent : window2.elapsedPercent;
@@ -38856,12 +38971,10 @@ function resolveUsageWindow(kind, data, context) {
   }
   return resolveFableUsageWindow(data);
 }
-function renderUsageDisplay(item, label, percent, format, getCursorOptions) {
+function renderUsageDisplay(item, settings, label, percent, format, getCursorOptions) {
   const displayMode = getUsageDisplayMode(item);
   if (isUsageProgressMode(displayMode)) {
-    const width = getUsageProgressBarWidth(displayMode);
-    const progressBar = makeTimerProgressBar(percent, width, getCursorOptions());
-    const progressDisplay = formatUsageProgress(item, displayMode, progressBar, formatPercent(percent, format));
+    const progressDisplay = renderUsageBar(item, settings, displayMode, percent, formatPercent(percent, format), { escalate: true, cursor: getCursorOptions() });
     return formatRawOrLabeledValue(item, label, progressDisplay);
   }
   if (isUsageSliderMode(displayMode)) {
@@ -38884,6 +38997,9 @@ function getUsagePercentWidgetEditorDisplay(kind, item) {
   };
 }
 function handleUsagePercentWidgetEditorAction(action, item) {
+  if (action === "cycle-bar-style") {
+    return cycleBarStyle(item);
+  }
   if (action === "toggle-progress") {
     return cycleUsageDisplayMode(item, [], true, true);
   }
@@ -38905,7 +39021,7 @@ function renderUsagePercentWidgetValue(kind, item, context, settings) {
   const format = resolveNumberFormat("percent", item, settings);
   if (context.isPreview) {
     const renderedPercent = inverted ? 100 - config.previewPercent : config.previewPercent;
-    return renderUsageDisplay(item, config.label, renderedPercent, format, () => showCursor ? { cursorPercent: 50 } : undefined);
+    return renderUsageDisplay(item, settings, config.label, renderedPercent, format, () => showCursor ? { cursorPercent: 50 } : undefined);
   }
   const data = context.usageData ?? {};
   const usagePercent = data[config.usageField];
@@ -38917,7 +39033,7 @@ function renderUsagePercentWidgetValue(kind, item, context, settings) {
   }
   const percent = Math.max(0, Math.min(100, usagePercent));
   const renderedPercent = inverted ? 100 - percent : percent;
-  return renderUsageDisplay(item, config.label, renderedPercent, format, () => {
+  return renderUsageDisplay(item, settings, config.label, renderedPercent, format, () => {
     if (!showCursor) {
       return;
     }
@@ -39031,6 +39147,9 @@ class ExtraUsageUtilizationWidget {
     return [EXTRA_USAGE_DISABLED_HIDEABLE_STATE, USAGE_NO_DATA_HIDEABLE_STATE];
   }
   handleEditorAction(action, item) {
+    if (action === "cycle-bar-style") {
+      return cycleBarStyle(item);
+    }
     if (action === "toggle-progress") {
       return cycleUsageDisplayMode(item, [], true, true);
     }
@@ -39050,9 +39169,7 @@ class ExtraUsageUtilizationWidget {
       const previewPercent = 2.6;
       const renderedPercent = inverted ? 100 - previewPercent : previewPercent;
       if (isUsageProgressMode(displayMode)) {
-        const width = getUsageProgressBarWidth(displayMode);
-        const progressBar = makeTimerProgressBar(renderedPercent, width);
-        return formatRawOrLabeledValue(item, "Overage: ", formatUsageProgress(item, displayMode, progressBar, formatPercent(renderedPercent, format)));
+        return formatRawOrLabeledValue(item, "Overage: ", renderUsageBar(item, settings, displayMode, renderedPercent, formatPercent(renderedPercent, format), { escalate: true }));
       }
       if (isUsageSliderMode(displayMode)) {
         const slider = makeSliderBar(renderedPercent);
@@ -39074,9 +39191,7 @@ class ExtraUsageUtilizationWidget {
     const percent = Math.max(0, Math.min(100, data.extraUsageUtilization));
     const renderedPercent = inverted ? 100 - percent : percent;
     if (isUsageProgressMode(displayMode)) {
-      const width = getUsageProgressBarWidth(displayMode);
-      const progressBar = makeTimerProgressBar(renderedPercent, width);
-      return formatRawOrLabeledValue(item, "Overage: ", formatUsageProgress(item, displayMode, progressBar, formatPercent(renderedPercent, format)));
+      return formatRawOrLabeledValue(item, "Overage: ", renderUsageBar(item, settings, displayMode, renderedPercent, formatPercent(renderedPercent, format), { escalate: true }));
     }
     if (isUsageSliderMode(displayMode)) {
       const slider = makeSliderBar(renderedPercent);
@@ -39804,6 +39919,9 @@ class BlockResetTimerWidget {
     return [USAGE_NO_DATA_HIDEABLE_STATE];
   }
   handleEditorAction(action, item) {
+    if (action === "cycle-bar-style") {
+      return cycleBarStyle(item);
+    }
     if (action === "toggle-progress") {
       return cycleUsageDisplayMode(item, ["compact", "absolute"], true);
     }
@@ -39833,9 +39951,7 @@ class BlockResetTimerWidget {
     if (context.isPreview) {
       const previewPercent = inverted ? 90 : 10;
       if (isUsageProgressMode(displayMode)) {
-        const barWidth = getUsageProgressBarWidth(displayMode);
-        const progressBar = makeTimerProgressBar(previewPercent, barWidth);
-        return formatRawOrLabeledValue(item, "Reset ", formatUsageProgress(item, displayMode, progressBar, formatPercent(previewPercent, format)));
+        return formatRawOrLabeledValue(item, "Reset ", renderUsageBar(item, settings, displayMode, previewPercent, formatPercent(previewPercent, format)));
       }
       if (isUsageSliderMode(displayMode)) {
         const slider = makeSliderBar(previewPercent);
@@ -39860,10 +39976,8 @@ class BlockResetTimerWidget {
       return formatRawOrLabeledValue(item, "Reset: ", USAGE_TIMER_LOADING_MESSAGE);
     }
     if (isUsageProgressMode(displayMode)) {
-      const barWidth = getUsageProgressBarWidth(displayMode);
       const percent = inverted ? window2.remainingPercent : window2.elapsedPercent;
-      const progressBar = makeTimerProgressBar(percent, barWidth);
-      return formatRawOrLabeledValue(item, "Reset ", formatUsageProgress(item, displayMode, progressBar, formatPercent(percent, format)));
+      return formatRawOrLabeledValue(item, "Reset ", renderUsageBar(item, settings, displayMode, percent, formatPercent(percent, format)));
     }
     if (isUsageSliderMode(displayMode)) {
       const percent = inverted ? window2.remainingPercent : window2.elapsedPercent;
@@ -39986,6 +40100,9 @@ class WeeklyResetTimerWidget {
     return [USAGE_NO_DATA_HIDEABLE_STATE];
   }
   handleEditorAction(action, item) {
+    if (action === "cycle-bar-style") {
+      return cycleBarStyle(item);
+    }
     if (action === "toggle-progress") {
       return cycleUsageDisplayMode(item, ["compact", "hours", "absolute"], true);
     }
@@ -40022,9 +40139,7 @@ class WeeklyResetTimerWidget {
     if (context.isPreview) {
       const previewPercent = inverted ? 90 : 10;
       if (isUsageProgressMode(displayMode)) {
-        const barWidth = getUsageProgressBarWidth(displayMode);
-        const progressBar = makeTimerProgressBar(previewPercent, barWidth);
-        return formatRawOrLabeledValue(item, "Weekly Reset ", formatUsageProgress(item, displayMode, progressBar, formatPercent(previewPercent, format)));
+        return formatRawOrLabeledValue(item, "Weekly Reset ", renderUsageBar(item, settings, displayMode, previewPercent, formatPercent(previewPercent, format)));
       }
       if (isUsageSliderMode(displayMode)) {
         const slider = makeSliderBar(previewPercent);
@@ -40051,10 +40166,8 @@ class WeeklyResetTimerWidget {
       return formatRawOrLabeledValue(item, "Weekly Reset: ", USAGE_TIMER_LOADING_MESSAGE2);
     }
     if (isUsageProgressMode(displayMode)) {
-      const barWidth = getUsageProgressBarWidth(displayMode);
       const percent = inverted ? window2.remainingPercent : window2.elapsedPercent;
-      const progressBar = makeTimerProgressBar(percent, barWidth);
-      return formatRawOrLabeledValue(item, "Weekly Reset ", formatUsageProgress(item, displayMode, progressBar, formatPercent(percent, format)));
+      return formatRawOrLabeledValue(item, "Weekly Reset ", renderUsageBar(item, settings, displayMode, percent, formatPercent(percent, format)));
     }
     if (isUsageSliderMode(displayMode)) {
       const percent = inverted ? window2.remainingPercent : window2.elapsedPercent;
@@ -40150,12 +40263,18 @@ class ContextBarWidget {
     } else if (mode === "slider-only") {
       modifiers.push("short bar only");
     }
+    if (mode !== "slider" && mode !== "slider-only" && item.metadata?.barStyle) {
+      modifiers.push(`${item.metadata.barStyle} style`);
+    }
     return {
       displayText: this.getDisplayName(),
       modifierText: modifiers.length > 0 ? `(${modifiers.join(", ")})` : undefined
     };
   }
   handleEditorAction(action, item) {
+    if (action === "cycle-bar-style") {
+      return cycleBarStyle(item);
+    }
     if (action === "toggle-percent") {
       return toggleMetadataFlag(item, "showPercent");
     }
@@ -40175,8 +40294,13 @@ class ContextBarWidget {
       }
     };
   }
-  renderXs(item, percent, usageText) {
-    const parts = [makeTimerProgressBar(percent, 5)];
+  makeBar(item, settings, percent, width) {
+    const style = resolveBarStyle(item, settings);
+    const escalatePercent = item.metadata?.escalate === "false" ? undefined : percent;
+    return style === "blocks" && width > 5 ? makeUsageProgressBar(percent, width) : makeStyledBar(percent, width, { style, escalatePercent });
+  }
+  renderXs(item, settings, percent, usageText) {
+    const parts = [this.makeBar(item, settings, percent, 5)];
     if (isMetadataFlagEnabled(item, "showPercent")) {
       parts.push(`${Math.round(percent)}%`);
     }
@@ -40192,7 +40316,7 @@ class ContextBarWidget {
     const percentFormat = resolveNumberFormat("percent", item, settings);
     if (context.isPreview) {
       if (displayMode === "progress-xs") {
-        return this.renderXs(item, 25, "50k/200k");
+        return this.renderXs(item, settings, 25, "50k/200k");
       }
       const usedDisplay = formatTokens(50000, tokenFormat, 0);
       const totalDisplay = formatTokens(200000, tokenFormat, 0);
@@ -40203,7 +40327,7 @@ class ContextBarWidget {
         return item.rawValue ? sliderDisplay : `Context: ${sliderDisplay}`;
       }
       const barWidth = displayMode === "progress" ? 32 : 16;
-      const previewDisplay = `${makeUsageProgressBar(25, barWidth)} ${usedDisplay}/${totalDisplay} (${percentDisplay})`;
+      const previewDisplay = `${this.makeBar(item, settings, 25, barWidth)} ${usedDisplay}/${totalDisplay} (${percentDisplay})`;
       return item.rawValue ? previewDisplay : `Context: ${previewDisplay}`;
     }
     const contextWindowMetrics = getContextWindowMetrics(context.data);
@@ -40225,7 +40349,7 @@ class ContextBarWidget {
     const totalDisplay = formatTokens(total, tokenFormat, 0);
     const percentDisplay = formatPercent(clampedPercent, percentFormat, 0);
     if (displayMode === "progress-xs") {
-      return this.renderXs(item, clampedPercent, `${Math.round(used / 1000)}k/${Math.round(total / 1000)}k`);
+      return this.renderXs(item, settings, clampedPercent, `${Math.round(used / 1000)}k/${Math.round(total / 1000)}k`);
     }
     if (isBarSliderMode(displayMode)) {
       const slider = makeSliderBar(clampedPercent);
@@ -40233,13 +40357,16 @@ class ContextBarWidget {
       return item.rawValue ? sliderDisplay : `Context: ${sliderDisplay}`;
     }
     const barWidth = displayMode === "progress" ? 32 : 16;
-    const display = `${makeUsageProgressBar(clampedPercent, barWidth)} ${usedDisplay}/${totalDisplay} (${percentDisplay})`;
+    const display = `${this.makeBar(item, settings, clampedPercent, barWidth)} ${usedDisplay}/${totalDisplay} (${percentDisplay})`;
     return item.rawValue ? display : `Context: ${display}`;
   }
   getCustomKeybinds(item) {
     const keybinds = [
       { key: "p", label: "(p)rogress toggle", action: "toggle-progress" }
     ];
+    if (item && !isBarSliderMode(getDisplayMode(item))) {
+      keybinds.push({ key: "b", label: "(b)ar style", action: "cycle-bar-style" });
+    }
     if (item && getDisplayMode(item) === "progress-xs") {
       keybinds.push({ key: "e", label: "show p(e)rcent", action: "toggle-percent" }, { key: "u", label: "show (u)sage", action: "toggle-usage" });
     }
@@ -42165,18 +42292,22 @@ function renderPowerlineStatusLine(widgets, settings, context, lineIndex = 0, gl
     }
     const textGradientStops = !isPreserveColors && powerlineGradientWidth > 1 ? overrideForegroundGradientStops : null;
     const styledContent = widget.widget.dim === "parens" ? applyParensDim(widget.content, shouldBold) : widget.content;
+    let outerFg = "";
+    let outerBg = "";
     if (widget.fgColor && !isPreserveColors && !textGradientStops) {
-      widgetContent += getColorAnsiCode(widget.fgColor, colorLevel, false);
+      outerFg = getColorAnsiCode(widget.fgColor, colorLevel, false);
+      widgetContent += outerFg;
     }
     if (widget.bgColor) {
-      widgetContent += getColorAnsiCode(widget.bgColor, colorLevel, true);
+      outerBg = getColorAnsiCode(widget.bgColor, colorLevel, true);
+      widgetContent += outerBg;
     }
     if (textGradientStops) {
       const gradientResult = applyLineGradientSegment(styledContent, textGradientStops, colorLevel, powerlineGradientColumn, powerlineGradientWidth);
       widgetContent += gradientResult.text;
       powerlineGradientColumn = gradientResult.nextColumn;
     } else {
-      widgetContent += styledContent;
+      widgetContent += reopenOuterColors(styledContent, outerFg, outerBg);
     }
     if (isPreserveColors) {
       widgetContent += "\x1B[0m";
