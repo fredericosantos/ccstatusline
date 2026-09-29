@@ -30,7 +30,7 @@ import {
   initConfigPath,
   loadSettings,
   saveSettings
-} from "./ccstatusline-815mjv16.js";
+} from "./ccstatusline-rqaxaxza.js";
 import {
   advanceGlobalPowerlineThemeIndex,
   advanceGlobalSeparatorIndex
@@ -201,6 +201,8 @@ function handleHookInput(input) {
 var BASE_USAGE_WIDGET_TYPES = [
   "session-usage",
   "weekly-usage",
+  "session-pace",
+  "weekly-pace",
   "block-timer",
   "reset-timer",
   "weekly-reset-timer",
@@ -228,6 +230,8 @@ var EMPTY_USAGE_REQUIREMENTS = [];
 var USAGE_WIDGET_REQUIREMENTS = {
   "session-usage": [{ field: "sessionUsage" }],
   "weekly-usage": [{ field: "weeklyUsage" }],
+  "session-pace": [{ field: "sessionUsage" }, { field: "sessionResetAt", suppressFetchError: true }],
+  "weekly-pace": [{ field: "weeklyUsage" }, { field: "weeklyResetAt", suppressFetchError: true }],
   ...Object.fromEntries(WEEKLY_MODEL_USAGE_BUCKETS.map((bucket) => [bucket.widgetType, [{ field: bucket.usageField }]])),
   "block-timer": [{ field: "sessionResetAt", suppressFetchError: true }],
   "reset-timer": [{ field: "sessionResetAt", suppressFetchError: true }],
@@ -590,7 +594,7 @@ async function main() {
       const { updatemessage, ...newSettings } = settings;
       await saveSettings(newSettings);
     }
-    const { runTUI } = await import("./index-fqa1b86d.js");
+    const { runTUI } = await import("./index-nfa1r84x.js");
     runTUI();
   }
 }

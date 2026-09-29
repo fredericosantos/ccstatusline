@@ -24140,6 +24140,49 @@ function makeStyledBar(percent, width, options) {
     return `${open2(color)}${symbol}`;
   }) + FG_OFF;
 }
+var PACE_COLORS = { usage: "#D97757", time: "#6A9BCC", both: "#F4F3EE" };
+var PACE_TYPES = new Set(["session-pace", "weekly-pace"]);
+function mix(parts) {
+  const total = parts.reduce((sum, [, weight]) => sum + weight, 0) || 1;
+  return "#" + [1, 3, 5].map((at) => Math.round(parts.reduce((sum, [hex, weight]) => sum + parseInt(hex.slice(at, at + 2), 16) * weight, 0) / total).toString(16).padStart(2, "0")).join("");
+}
+function resolvePaceColors(item, settings) {
+  const cfg = settings.progressPaceColors ?? {};
+  const fromConfig = (key) => typeof cfg[key] === "string" ? cfg[key] : undefined;
+  const pick = (meta, key, fallback) => resolveBarColor(meta, resolveBarColor(fromConfig(key), fallback));
+  const usage = pick(item.metadata?.usageColor, "usage", PACE_COLORS.usage);
+  const time = pick(item.metadata?.timeColor, "time", PACE_COLORS.time);
+  const wantsMix = (item.metadata?.bothColor ?? fromConfig("both")) === "mix";
+  return { usage, time, both: wantsMix ? mix([[usage, 1], [time, 1]]) : pick(item.metadata?.bothColor, "both", PACE_COLORS.both) };
+}
+function resolvePaceStyle(item, settings) {
+  if (source_default.level === 0) {
+    return "blocks";
+  }
+  return resolveBarStyle(item, settings) === "line" ? "line" : "dots";
+}
+function makePaceBar(usedPercent, elapsedPercent, width, options) {
+  if (width <= 0) {
+    return "";
+  }
+  const track = options.track ?? BAR_COLORS.track;
+  const symbol = options.style === "line" ? "━" : options.symbol ?? DEFAULT_SYMBOL;
+  const cover = (percent, i) => Math.max(0, Math.min(1, Math.max(0, Math.min(100, percent)) * width / 100 - i + 0.000000001));
+  return Array.from({ length: width }, (_, i) => {
+    const used = cover(usedPercent, i);
+    const elapsed = cover(elapsedPercent, i);
+    const both = Math.min(used, elapsed);
+    const color = mix([[options.colors.both, both], [options.colors.usage, used - both], [options.colors.time, elapsed - both], [track, 1 - Math.max(used, elapsed)]]);
+    return `${open2(color)}${symbol}`;
+  }).join("") + FG_OFF;
+}
+function dimText(item, settings, text) {
+  if (!text || source_default.level === 0) {
+    return text;
+  }
+  const track = resolveBarColor(item.metadata?.trackColor, resolveBarColor(settings.progressBarTrackColor, BAR_COLORS.track));
+  return `${open2(track)}${text}${FG_OFF}`;
+}
 var DEFAULT_FLUID_MIN = 3;
 var DEFAULT_FLUID_MAX = 10;
 var FLUID_FALLBACK_CELLS = 5;
@@ -24157,7 +24200,7 @@ function resolveFluidLimits(item, settings) {
   return { min: Math.min(min, max), max };
 }
 function barOverhead(item, settings) {
-  return resolveBarStyle(item, settings) === "pill" ? PILL_CAPS : 0;
+  return !PACE_TYPES.has(item.type) && resolveBarStyle(item, settings) === "pill" ? PILL_CAPS : 0;
 }
 function fluidBarCells(item, settings) {
   const { min, max } = resolveFluidLimits(item, settings);
@@ -24386,6 +24429,16 @@ function calculateContextPercentage(context) {
 }
 
 // src/widgets/Model.ts
+function resolveModelName(item, context) {
+  const model = context.data?.model;
+  const modelDisplayName = typeof model === "string" ? model : model?.display_name ?? model?.id;
+  if (!modelDisplayName) {
+    return null;
+  }
+  const stripped = modelDisplayName.replace(/\s*\(.*\)$/, "");
+  return item.metadata?.shortName === "true" ? stripped.split(/\s+/)[0] ?? stripped : stripped;
+}
+
 class ModelWidget {
   getDefaultColor() {
     return "cyan";
@@ -24408,11 +24461,8 @@ class ModelWidget {
       const preview = firstWordOnly ? "Opus" : "Claude";
       return item.rawValue ? preview : `Model: ${preview}`;
     }
-    const model = context.data?.model;
-    const modelDisplayName = typeof model === "string" ? model : model?.display_name ?? model?.id;
-    if (modelDisplayName) {
-      const stripped = modelDisplayName.replace(/\s*\(.*\)$/, "");
-      const name = firstWordOnly ? stripped.split(/\s+/)[0] ?? stripped : stripped;
+    const name = resolveModelName(item, context);
+    if (name) {
       return item.rawValue ? name : `Model: ${name}`;
     }
     return null;
@@ -33858,6 +33908,7 @@ var SettingsSchema = object({
   progressBarSymbol: string().optional(),
   progressBarEscalate: boolean2().optional(),
   progressTextEscalation: array(unknown()).optional(),
+  progressPaceColors: record(string(), unknown()).optional(),
   progressBarMin: number().optional(),
   progressBarMax: number().optional(),
   numberFormat: GlobalNumberFormatSchema.optional(),
@@ -34332,7 +34383,7 @@ async function saveSettings(settings) {
   };
   await writeSettingsJson(settingsWithVersion, paths);
   try {
-    const { syncWidgetHooks } = await import("./hooks-kkhged5p.js");
+    const { syncWidgetHooks } = await import("./hooks-6gtgfryr.js");
     await syncWidgetHooks(settings);
   } catch {}
 }
@@ -34705,7 +34756,7 @@ async function installStatusLine({
   }
   const savedSettings = await loadSavedSettingsForHookSync();
   if (savedSettings) {
-    const { syncWidgetHooks } = await import("./hooks-kkhged5p.js");
+    const { syncWidgetHooks } = await import("./hooks-6gtgfryr.js");
     await syncWidgetHooks(savedSettings);
   }
 }
@@ -34723,7 +34774,7 @@ async function uninstallStatusLine() {
   }
   await saveInstallationMetadata(undefined);
   try {
-    const { removeManagedHooks } = await import("./hooks-kkhged5p.js");
+    const { removeManagedHooks } = await import("./hooks-6gtgfryr.js");
     await removeManagedHooks();
   } catch {}
 }
@@ -39151,6 +39202,232 @@ class SessionUsageWidget {
     return true;
   }
 }
+// src/widgets/PaceBars.ts
+var KINDS = {
+  session: { label: "5h", displayName: "Session Pace", field: "sessionUsage", window: "5-hour" },
+  weekly: { label: "7d", displayName: "Weekly Pace", field: "weeklyUsage", window: "weekly" }
+};
+var TEXT_MODES = ["usage", "both", "delta", "none"];
+var DISPLAYS = ["progress-xs", "progress-short", "progress", "fluid"];
+var WIDTH_NAMES = { "progress-xs": "tiny bar", "progress-short": "medium bar", progress: "long bar", fluid: "fluid bar" };
+function cycle(list, current) {
+  return list[(list.indexOf(current) + 1) % list.length];
+}
+var clamp3 = (value) => Math.max(0, Math.min(100, value));
+var getTextMode = (item) => TEXT_MODES.find((mode) => mode === item.metadata?.text) ?? "usage";
+var getDisplay = (item) => {
+  const mode = getUsageDisplayMode(item);
+  return isUsageProgressMode(mode) ? mode : "progress-xs";
+};
+function paceText(item, settings, used, elapsed) {
+  const mode = getTextMode(item);
+  if (mode === "none") {
+    return "";
+  }
+  const gap = Math.round(used - (elapsed ?? used));
+  const text = elapsed === undefined || mode === "usage" ? formatPercent(used, resolveNumberFormat("percent", item, settings)) : mode === "both" ? `${Math.round(used)}/${Math.round(elapsed)}%` : gap > 0 ? `+${gap}` : `${gap}`;
+  return escalatePercentText(item, settings, text, used, true);
+}
+
+class PaceWidget {
+  kind;
+  constructor(kind) {
+    this.kind = kind;
+  }
+  getDefaultColor() {
+    return "white";
+  }
+  getDescription() {
+    const { window: window2 } = KINDS[this.kind];
+    return `One bar for the ${window2} usage window with two measures: usage consumed and time elapsed.
+` + `Blue = time elapsed ahead of usage (slack), orange = usage ahead of time (burning fast), cream = both (on pace).
+` + "Colours: progressPaceColors or metadata usageColor / timeColor / bothColor. Text: metadata text = usage | both | delta | none.";
+  }
+  getDisplayName() {
+    return KINDS[this.kind].displayName;
+  }
+  getCategory() {
+    return "Usage";
+  }
+  getEditorDisplay(item) {
+    return { displayText: this.getDisplayName(), modifierText: makeModifierText([WIDTH_NAMES[getDisplay(item)] ?? "", `text: ${getTextMode(item)}`]) };
+  }
+  getHideableStates() {
+    return [USAGE_NO_DATA_HIDEABLE_STATE];
+  }
+  getCustomKeybinds() {
+    return [
+      { key: "p", label: "(p)rogress width", action: "cycle-width" },
+      { key: "t", label: "(t)ext", action: "cycle-text" },
+      { key: "b", label: "(b)ar style", action: "cycle-bar-style" }
+    ];
+  }
+  handleEditorAction(action, item) {
+    if (action === "cycle-bar-style") {
+      return cycleBarStyle(item);
+    }
+    if (action === "cycle-width") {
+      return { ...item, metadata: { ...item.metadata, display: cycle(DISPLAYS, getDisplay(item)) } };
+    }
+    return action === "cycle-text" ? { ...item, metadata: { ...item.metadata, text: cycle(TEXT_MODES, getTextMode(item)) } } : null;
+  }
+  render(item, context, settings) {
+    const config = KINDS[this.kind];
+    let used;
+    let elapsed;
+    if (context.isPreview) {
+      used = 42;
+      elapsed = 30;
+    } else {
+      const data = context.usageData ?? {};
+      const usage = data[config.field];
+      if (usage === undefined) {
+        if (data.error) {
+          return isHidden(item, USAGE_NO_DATA_HIDEABLE_STATE.key) ? null : getUsageErrorMessage(data.error);
+        }
+        return null;
+      }
+      used = clamp3(usage);
+      const window2 = this.kind === "session" ? resolveUsageWindowWithFallback(data, context.blockMetrics) : resolveWeeklyUsageWindow(data);
+      elapsed = window2?.elapsedPercent;
+    }
+    const display = getDisplay(item);
+    const width = display === "fluid" ? fluidBarCells(item, settings) : getUsageProgressBarWidth(display);
+    const style = resolvePaceStyle(item, settings);
+    const base = barOptionsFor(item, settings, used);
+    const bar = elapsed === undefined || style === "blocks" ? makeStyledBar(used, width, { ...base, style }) : makePaceBar(used, elapsed, width, { style, symbol: base.symbol, track: base.track, colors: resolvePaceColors(item, settings) });
+    const label = item.metadata?.label ?? config.label;
+    return [label, bar, paceText(item, settings, used, elapsed)].filter(Boolean).join(" ") || null;
+  }
+  supportsRawValue() {
+    return false;
+  }
+  supportsColors() {
+    return true;
+  }
+}
+
+class SessionPaceWidget extends PaceWidget {
+  constructor() {
+    super("session");
+  }
+}
+
+class WeeklyPaceWidget extends PaceWidget {
+  constructor() {
+    super("weekly");
+  }
+}
+// src/widgets/ThinkingEffort.ts
+function resolveThinkingEffortFromStatusJson(context) {
+  const effort = context.data?.effort;
+  if (!effort || !("level" in effort)) {
+    return;
+  }
+  return typeof effort.level === "string" ? normalizeThinkingEffort(effort.level) : null;
+}
+function resolveThinkingEffortFromSettings() {
+  try {
+    const settings = loadClaudeSettingsSync({ logErrors: false });
+    return normalizeThinkingEffort(settings.effortLevel);
+  } catch {}
+  return;
+}
+function resolveThinkingEffort(context) {
+  const statusEffort = resolveThinkingEffortFromStatusJson(context);
+  if (statusEffort !== undefined) {
+    return statusEffort;
+  }
+  const transcriptEffort = context.transcriptThinkingEffort === undefined ? getTranscriptThinkingEffort(context.data?.transcript_path) : context.transcriptThinkingEffort ?? undefined;
+  return transcriptEffort ?? resolveThinkingEffortFromSettings() ?? null;
+}
+function formatEffort(resolved) {
+  if (!resolved) {
+    return "default";
+  }
+  return resolved.known ? resolved.value : `${resolved.value}?`;
+}
+function getEffortLabel(context, showMedium = false) {
+  const resolved = resolveThinkingEffort(context);
+  if (!resolved || resolved.known && resolved.value === "medium" && !showMedium) {
+    return null;
+  }
+  return formatEffort(resolved);
+}
+
+class ThinkingEffortWidget {
+  getDefaultColor() {
+    return "magenta";
+  }
+  getDescription() {
+    return `Displays the current thinking effort level (low, medium, high, xhigh, max).
+Claude Code reports Ultracode as xhigh in status line data; Ultracode is not exposed as a separate effort level.
+Unknown levels are shown with a trailing "?" (e.g. "super-max?").
+May be incorrect when multiple Claude Code sessions are running due to current Claude Code limitations.`;
+  }
+  getDisplayName() {
+    return "Thinking Effort";
+  }
+  getCategory() {
+    return "Core";
+  }
+  getEditorDisplay(item) {
+    return { displayText: this.getDisplayName() };
+  }
+  render(item, context, settings) {
+    if (context.isPreview) {
+      return item.rawValue ? "high" : "Thinking: high";
+    }
+    const effort = getEffortLabel(context);
+    if (!effort) {
+      return null;
+    }
+    return item.rawValue ? effort : `Thinking: ${effort}`;
+  }
+  supportsRawValue() {
+    return true;
+  }
+  supportsColors(item) {
+    return true;
+  }
+}
+
+// src/widgets/ModelEffort.ts
+class ModelEffortWidget {
+  getDefaultColor() {
+    return "white";
+  }
+  getDescription() {
+    return `Model name and thinking effort in one unit, e.g. (Sonnet|high).
+` + 'Metadata: open / close (default "(" ")"), separator (default "|"), caps = rounded for Powerline caps, showMedium = true to show medium effort, shortName = true for the first word only.';
+  }
+  getDisplayName() {
+    return "Model + Effort";
+  }
+  getCategory() {
+    return "Core";
+  }
+  getEditorDisplay(item) {
+    return { displayText: this.getDisplayName() };
+  }
+  render(item, context, settings) {
+    const meta = item.metadata;
+    const name = context.isPreview ? "Sonnet" : resolveModelName(item, context);
+    if (!name) {
+      return null;
+    }
+    const effort = context.isPreview ? "high" : getEffortLabel(context, meta?.showMedium === "true");
+    const rounded = meta?.caps === "rounded";
+    const dim = (text) => dimText(item, settings, text);
+    return dim(rounded ? "" : meta?.open ?? "(") + name + (effort ? dim(meta?.separator ?? "|") + effort : "") + dim(rounded ? "" : meta?.close ?? ")");
+  }
+  supportsRawValue() {
+    return false;
+  }
+  supportsColors() {
+    return true;
+  }
+}
 // src/widgets/WeeklyUsage.ts
 class WeeklyUsageWidget {
   getDefaultColor() {
@@ -40384,6 +40661,11 @@ class ContextBarWidget {
     return item.rawValue ? display : `Context: ${display}`;
   }
   render(item, context, settings) {
+    const body = this.renderBody(item, context, settings);
+    const label = item.metadata?.label;
+    return body && label ? `${label} ${body}` : body;
+  }
+  renderBody(item, context, settings) {
     const displayMode = getDisplayMode(item);
     const tokenFormat = resolveNumberFormat("token", item, settings);
     const percentFormat = resolveNumberFormat("percent", item, settings);
@@ -40833,73 +41115,6 @@ var SkillsEditor = ({ widget, onComplete, onCancel, action }) => {
     children: "Unknown editor mode"
   });
 };
-// src/widgets/ThinkingEffort.ts
-function resolveThinkingEffortFromStatusJson(context) {
-  const effort = context.data?.effort;
-  if (!effort || !("level" in effort)) {
-    return;
-  }
-  return typeof effort.level === "string" ? normalizeThinkingEffort(effort.level) : null;
-}
-function resolveThinkingEffortFromSettings() {
-  try {
-    const settings = loadClaudeSettingsSync({ logErrors: false });
-    return normalizeThinkingEffort(settings.effortLevel);
-  } catch {}
-  return;
-}
-function resolveThinkingEffort(context) {
-  const statusEffort = resolveThinkingEffortFromStatusJson(context);
-  if (statusEffort !== undefined) {
-    return statusEffort;
-  }
-  const transcriptEffort = context.transcriptThinkingEffort === undefined ? getTranscriptThinkingEffort(context.data?.transcript_path) : context.transcriptThinkingEffort ?? undefined;
-  return transcriptEffort ?? resolveThinkingEffortFromSettings() ?? null;
-}
-function formatEffort(resolved) {
-  if (!resolved) {
-    return "default";
-  }
-  return resolved.known ? resolved.value : `${resolved.value}?`;
-}
-
-class ThinkingEffortWidget {
-  getDefaultColor() {
-    return "magenta";
-  }
-  getDescription() {
-    return `Displays the current thinking effort level (low, medium, high, xhigh, max).
-Claude Code reports Ultracode as xhigh in status line data; Ultracode is not exposed as a separate effort level.
-Unknown levels are shown with a trailing "?" (e.g. "super-max?").
-May be incorrect when multiple Claude Code sessions are running due to current Claude Code limitations.`;
-  }
-  getDisplayName() {
-    return "Thinking Effort";
-  }
-  getCategory() {
-    return "Core";
-  }
-  getEditorDisplay(item) {
-    return { displayText: this.getDisplayName() };
-  }
-  render(item, context, settings) {
-    if (context.isPreview) {
-      return item.rawValue ? "high" : "Thinking: high";
-    }
-    const resolved = resolveThinkingEffort(context);
-    if (!resolved || resolved.known && resolved.value === "medium") {
-      return null;
-    }
-    const effort = formatEffort(resolved);
-    return item.rawValue ? effort : `Thinking: ${effort}`;
-  }
-  supportsRawValue() {
-    return true;
-  }
-  supportsColors(item) {
-    return true;
-  }
-}
 // src/widgets/VimMode.ts
 var VIM_ICON = "v";
 var VIM_NERD_FONT_ICON = "";
@@ -41945,6 +42160,9 @@ var WIDGET_MANIFEST = [
   { type: "session-name", create: () => new SessionNameWidget },
   { type: "free-memory", create: () => new FreeMemoryWidget },
   { type: "session-usage", create: () => new SessionUsageWidget },
+  { type: "session-pace", create: () => new SessionPaceWidget },
+  { type: "weekly-pace", create: () => new WeeklyPaceWidget },
+  { type: "model-effort", create: () => new ModelEffortWidget },
   { type: "weekly-usage", create: () => new WeeklyUsageWidget },
   { type: "extra-usage-utilization", create: () => new ExtraUsageUtilizationWidget },
   { type: "extra-usage-remaining", create: () => new ExtraUsageRemainingWidget },
