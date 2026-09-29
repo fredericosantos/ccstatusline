@@ -145,7 +145,14 @@ export class ContextBarWidget implements Widget {
         return item.rawValue ? display : `Context: ${display}`;
     }
 
+    // metadata.label puts a short tag in front (e.g. "ctx"); best with rawValue, which drops the "Context: " prefix
     render(item: WidgetItem, context: RenderContext, settings: Settings): string | null {
+        const body = this.renderBody(item, context, settings);
+        const label = item.metadata?.label;
+        return body && label ? `${label} ${body}` : body;
+    }
+
+    private renderBody(item: WidgetItem, context: RenderContext, settings: Settings): string | null {
         const displayMode = getDisplayMode(item);
         const tokenFormat = resolveNumberFormat('token', item, settings);
         const percentFormat = resolveNumberFormat('percent', item, settings);

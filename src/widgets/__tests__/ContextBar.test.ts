@@ -46,6 +46,16 @@ describe('ContextBarWidget', () => {
         expect(widget.render({ id: 'ctx', type: 'context-bar' }, context, DEFAULT_SETTINGS)).toBe('Context: [bar:15.0:16] 30k/200k (15%)');
     });
 
+    it('puts metadata.label in front of the bar', () => {
+        const context: RenderContext = { data: { context_window: { context_window_size: 200000, current_usage: { input_tokens: 30000 } } } };
+        const widget = new ContextBarWidget();
+        const item: WidgetItem = { id: 'ctx', type: 'context-bar', rawValue: true, metadata: { display: 'progress-xs', showPercent: 'true', label: 'ctx' } };
+
+        expect(widget.render(item, context, DEFAULT_SETTINGS)?.startsWith('ctx ')).toBe(true);
+        expect(widget.render({ ...item, metadata: { ...item.metadata, label: '' } }, context, DEFAULT_SETTINGS)?.startsWith('ctx')).toBe(false);
+        expect(widget.render({ ...item, metadata: { display: 'progress-xs', showPercent: 'true' } }, context, DEFAULT_SETTINGS)?.startsWith('ctx')).toBe(false);
+    });
+
     it('falls back to token metrics and model context size', () => {
         const context: RenderContext = {
             data: { model: { id: 'claude-3-5-sonnet-20241022' } },

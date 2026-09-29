@@ -191,6 +191,70 @@ export function makeStyledBar(percent: number, width: number, options: StyledBar
     }) + FG_OFF;
 }
 
+// Pace bars: one bar, two measures. Each symbol is coloured by how much of it usage covers, how much of it the
+// elapsed part of the window covers, and where both do. Fully "both" means on pace.
+export const PACE_COLORS = { usage: '#D97757', time: '#6A9BCC', both: '#F4F3EE' } as const;
+const PACE_TYPES = new Set(['session-pace', 'weekly-pace']);
+
+export interface PaceColors { usage: string; time: string; both: string }
+
+// Weighted average in sRGB (the same maths as blend, for any number of colours)
+function mix(parts: [string, number][]): string {
+    const total = parts.reduce((sum, [, weight]) => sum + weight, 0) || 1;
+    return '#' + [1, 3, 5]
+        .map(at => Math.round(parts.reduce((sum, [hex, weight]) => sum + parseInt(hex.slice(at, at + 2), 16) * weight, 0) / total).toString(16).padStart(2, '0'))
+        .join('');
+}
+
+// metadata.usageColor / timeColor / bothColor, then settings.progressPaceColors, then the defaults.
+// bothColor 'mix' is the plain average of the usage and time colours.
+export function resolvePaceColors(item: WidgetItem, settings: Settings): PaceColors {
+    const cfg: Record<string, unknown> = settings.progressPaceColors ?? {};
+    const fromConfig = (key: string): string | undefined => typeof cfg[key] === 'string' ? cfg[key] : undefined;
+    const pick = (meta: string | undefined, key: string, fallback: string): string => resolveBarColor(meta, resolveBarColor(fromConfig(key), fallback));
+    const usage = pick(item.metadata?.usageColor, 'usage', PACE_COLORS.usage);
+    const time = pick(item.metadata?.timeColor, 'time', PACE_COLORS.time);
+    const wantsMix = (item.metadata?.bothColor ?? fromConfig('both')) === 'mix';
+    return { usage, time, both: wantsMix ? mix([[usage, 1], [time, 1]]) : pick(item.metadata?.bothColor, 'both', PACE_COLORS.both) };
+}
+
+// Pace bars are dots or line; pill and blocks fall back to dots. Without colour they cannot show two
+// measures, so they degrade to the plain usage bar ('blocks').
+export function resolvePaceStyle(item: WidgetItem, settings: Settings): 'dots' | 'line' | 'blocks' {
+    if (chalk.level === 0) {
+        return 'blocks';
+    }
+    return resolveBarStyle(item, settings) === 'line' ? 'line' : 'dots';
+}
+
+interface PaceBarOptions { style: 'dots' | 'line'; symbol?: string; track?: string; colors: PaceColors }
+
+export function makePaceBar(usedPercent: number, elapsedPercent: number, width: number, options: PaceBarOptions): string {
+    if (width <= 0) {
+        return '';
+    }
+    const track = options.track ?? BAR_COLORS.track;
+    const symbol = options.style === 'line' ? '━' : options.symbol ?? DEFAULT_SYMBOL;
+    // Share of symbol i a percentage covers; the epsilon keeps exact boundaries (40% of 5) from smearing
+    const cover = (percent: number, i: number): number => Math.max(0, Math.min(1, (Math.max(0, Math.min(100, percent)) * width) / 100 - i + 1e-9));
+    return Array.from({ length: width }, (_, i) => {
+        const used = cover(usedPercent, i);
+        const elapsed = cover(elapsedPercent, i);
+        const both = Math.min(used, elapsed);
+        const color = mix([[options.colors.both, both], [options.colors.usage, used - both], [options.colors.time, elapsed - both], [track, 1 - Math.max(used, elapsed)]]);
+        return `${open(color)}${symbol}`;
+    }).join('') + FG_OFF;
+}
+
+// Dims a delimiter with the track colour; plain text when there is no colour support
+export function dimText(item: WidgetItem, settings: Settings, text: string): string {
+    if (!text || chalk.level === 0) {
+        return text;
+    }
+    const track = resolveBarColor(item.metadata?.trackColor, resolveBarColor(settings.progressBarTrackColor, BAR_COLORS.track));
+    return `${open(track)}${text}${FG_OFF}`;
+}
+
 const DEFAULT_FLUID_MIN = 3;
 const DEFAULT_FLUID_MAX = 10;
 // Cells a fluid bar takes before the terminal width is known
@@ -216,7 +280,7 @@ export function resolveFluidLimits(item: WidgetItem, settings: Settings): { min:
 
 // Extra cells a style adds around the bar (the pill's rounded caps) once the bar has any cell at all
 export function barOverhead(item: WidgetItem, settings: Settings): number {
-    return resolveBarStyle(item, settings) === 'pill' ? PILL_CAPS : 0;
+    return !PACE_TYPES.has(item.type) && resolveBarStyle(item, settings) === 'pill' ? PILL_CAPS : 0;
 }
 
 // The renderer stamps the line's share into fluidCells on the copy it renders; without it (width unknown, TUI

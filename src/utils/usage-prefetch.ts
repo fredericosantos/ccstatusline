@@ -18,6 +18,8 @@ import {
 const BASE_USAGE_WIDGET_TYPES = [
     'session-usage',
     'weekly-usage',
+    'session-pace',
+    'weekly-pace',
     'block-timer',
     'reset-timer',
     'weekly-reset-timer',
@@ -55,6 +57,9 @@ const EMPTY_USAGE_REQUIREMENTS: UsageFieldRequirement[] = [];
 const USAGE_WIDGET_REQUIREMENTS: Record<string, UsageFieldRequirement[]> = {
     'session-usage': [{ field: 'sessionUsage' }],
     'weekly-usage': [{ field: 'weeklyUsage' }],
+    // Pace bars need the reset time too, but a missing one only drops the time half of the bar
+    'session-pace': [{ field: 'sessionUsage' }, { field: 'sessionResetAt', suppressFetchError: true }],
+    'weekly-pace': [{ field: 'weeklyUsage' }, { field: 'weeklyResetAt', suppressFetchError: true }],
     ...Object.fromEntries(WEEKLY_MODEL_USAGE_BUCKETS.map(bucket => [bucket.widgetType, [{ field: bucket.usageField }]])),
     'block-timer': [{ field: 'sessionResetAt', suppressFetchError: true }],
     'reset-timer': [{ field: 'sessionResetAt', suppressFetchError: true }],

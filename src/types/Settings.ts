@@ -87,6 +87,8 @@ export const SettingsSchema = z.object({
     // Percent-text colour steps [{ at: 60, color: '#E5B454' }, ...] for bar widgets; off when unset.
     // Validated where used, so a malformed step is skipped instead of invalidating the config
     progressTextEscalation: z.array(z.unknown()).optional(),
+    // Colours of the pace bars: { usage, time, both }; 'both' may be 'mix'. Bad values fall back to the defaults
+    progressPaceColors: z.record(z.string(), z.unknown()).optional(),
     // Cell range of `display: 'fluid'` bars (3..10 when unset); metadata.barMin / barMax override per widget.
     // Validated where used (non-negative integers), so a bad value falls back instead of invalidating the config
     progressBarMin: z.number().optional(),
