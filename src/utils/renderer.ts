@@ -16,6 +16,13 @@ import {
     MERGE_TARGET_HIDDEN_HIDEABLE_STATE,
     isHidden
 } from '../widgets/shared/hideable';
+import {
+    allocateFluidCells,
+    barOverhead,
+    isFluidBar,
+    resolveFluidLimits,
+    withFluidCells
+} from '../widgets/shared/progress-bar';
 
 import {
     applyLineGradient,
@@ -93,6 +100,11 @@ function resolveEffectiveTerminalWidth(
 ): number | null {
     if (!detectedWidth) {
         return null;
+    }
+
+    // Natural-width measurement (see sizeFluidBars): a non-positive width switches off truncation and flex expansion
+    if (context.measureNatural) {
+        return -1;
     }
 
     const flexMode = settings.flexMode as string;
@@ -867,6 +879,44 @@ function applyMergeTargetHidingToSegment(segment: PreRenderedWidget[]): void {
     }
 }
 
+// Fluid bars share the room a line has left. The line was pre-rendered with every fluid bar at its max, so its
+// natural width minus those bars is what everything else needs; the rest is split between the bars and only the
+// bars are rendered again (usage / context data is already in the context, nothing is fetched twice).
+function sizeFluidBars(
+    widgets: WidgetItem[],
+    line: PreRenderedWidget[],
+    width: number,
+    settings: Settings,
+    context: RenderContext
+): void {
+    const measured = line.map(entry => ({ ...entry }));
+    applyMergeTargetHiding(measured);
+    const bars = line
+        .map((entry, i) => ({ entry, shown: Boolean(measured[i]?.content) }))
+        .filter(({ entry, shown }) => shown && isFluidBar(entry.widget))
+        .map(({ entry }) => entry);
+    if (bars.length === 0) {
+        return;
+    }
+
+    const natural = getVisibleWidth(renderStatusLine(
+        widgets,
+        settings,
+        { ...context, terminalWidth: 1, measureNatural: true },
+        measured,
+        calculateMaxWidthsFromPreRendered([measured], settings)
+    ));
+    const specs = bars.map(({ widget }) => ({ max: resolveFluidLimits(widget, settings).max, overhead: barOverhead(widget, settings) }));
+    const barSpace = specs.reduce((sum, spec) => sum + (spec.max > 0 ? spec.max + spec.overhead : 0), 0);
+    const cells = allocateFluidCells(width - (natural - barSpace), specs);
+
+    bars.forEach((entry, i) => {
+        const base = context.minimalist ? { ...entry.widget, rawValue: true } : entry.widget;
+        entry.content = getWidget(entry.widget.type)?.render(withFluidCells(base, cells[i] ?? 0), context, settings) ?? '';
+        entry.plainLength = getVisibleWidth(entry.content);
+    });
+}
+
 // Pre-render all widgets once and cache the results
 export function preRenderAllWidgets(
     allLinesWidgets: WidgetItem[][],
@@ -874,6 +924,11 @@ export function preRenderAllWidgets(
     context: RenderContext
 ): PreRenderedWidget[][] {
     const preRenderedLines: PreRenderedWidget[][] = [];
+
+    // Fluid bars need the effective width; without one they keep the 5-cell fallback
+    const fluidWidth = allLinesWidgets.some(line => line.some(isFluidBar))
+        ? resolveEffectiveTerminalWidth(context.terminalWidth ?? getTerminalWidth(), settings, context)
+        : null;
 
     // Process each line
     for (const lineWidgets of allLinesWidgets) {
@@ -901,7 +956,10 @@ export function preRenderAllWidgets(
                 continue;
             }
 
-            const effectiveWidget = context.minimalist ? { ...widget, rawValue: true } : widget;
+            const baseWidget = context.minimalist ? { ...widget, rawValue: true } : widget;
+            const effectiveWidget = fluidWidth && isFluidBar(widget)
+                ? withFluidCells(baseWidget, resolveFluidLimits(widget, settings).max)
+                : baseWidget;
             const widgetText = widgetImpl.render(effectiveWidget, context, settings) ?? '';
 
             // Store the rendered content without padding (padding is applied later)
@@ -914,6 +972,9 @@ export function preRenderAllWidgets(
             });
         }
 
+        if (fluidWidth) {
+            sizeFluidBars(lineWidgets, preRenderedLine, fluidWidth, settings, context);
+        }
         applyMergeTargetHiding(preRenderedLine);
         preRenderedLines.push(preRenderedLine);
     }

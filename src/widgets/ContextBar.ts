@@ -24,6 +24,7 @@ import {
 } from './shared/metadata';
 import {
     barOptionsFor,
+    fluidBarCells,
     makeStyledBar
 } from './shared/progress-bar';
 import {
@@ -31,11 +32,11 @@ import {
     makeSliderBar
 } from './shared/usage-display';
 
-type DisplayMode = 'progress' | 'progress-short' | 'progress-xs' | 'slider' | 'slider-only';
+type DisplayMode = 'progress' | 'progress-short' | 'progress-xs' | 'fluid' | 'slider' | 'slider-only';
 
 function getDisplayMode(item: WidgetItem): DisplayMode {
     const mode = item.metadata?.display;
-    if (mode === 'progress' || mode === 'progress-xs' || mode === 'slider' || mode === 'slider-only') {
+    if (mode === 'progress' || mode === 'progress-xs' || mode === 'fluid' || mode === 'slider' || mode === 'slider-only') {
         return mode;
     }
     return 'progress-short';
@@ -57,8 +58,8 @@ export class ContextBarWidget implements Widget {
 
         if (mode === 'progress-short') {
             modifiers.push('medium bar');
-        } else if (mode === 'progress-xs') {
-            modifiers.push('tiny bar');
+        } else if (mode === 'progress-xs' || mode === 'fluid') {
+            modifiers.push(mode === 'fluid' ? 'fluid bar' : 'tiny bar');
             if (isMetadataFlagEnabled(item, 'showPercent')) {
                 modifiers.push('percent');
             }
@@ -118,22 +119,26 @@ export class ContextBarWidget implements Widget {
         };
     }
 
-    // The xs bar is bracket-less; percent and used/total are opt-in via showPercent / showUsage
-    private makeBar(item: WidgetItem, settings: Settings, percent: number, width: number): string {
+    // The xs and fluid bars are bracket-less; percent and used/total are opt-in via showPercent / showUsage
+    private makeBar(item: WidgetItem, settings: Settings, percent: number, width: number, framed = width > 5): string {
         const options = barOptionsFor(item, settings, percent);
         // Brackets only frame the blocks style on the longer bars
-        return options.style === 'blocks' && width > 5
+        return options.style === 'blocks' && framed
             ? makeUsageProgressBar(percent, width)
             : makeStyledBar(percent, width, options);
     }
 
     private renderXs(item: WidgetItem, settings: Settings, percent: number, usageText: string): string {
-        const parts = [this.makeBar(item, settings, percent, 5)];
+        const width = getDisplayMode(item) === 'fluid' ? fluidBarCells(item, settings) : 5;
+        const parts = [this.makeBar(item, settings, percent, width, false)].filter(Boolean);
         if (isMetadataFlagEnabled(item, 'showPercent')) {
             parts.push(`${Math.round(percent)}%`);
         }
         if (isMetadataFlagEnabled(item, 'showUsage')) {
             parts.push(usageText);
+        }
+        if (parts.length === 0) {
+            return '';
         }
         const display = parts.join(' ');
         return item.rawValue ? display : `Context: ${display}`;
@@ -145,7 +150,7 @@ export class ContextBarWidget implements Widget {
         const percentFormat = resolveNumberFormat('percent', item, settings);
 
         if (context.isPreview) {
-            if (displayMode === 'progress-xs') {
+            if (displayMode === 'progress-xs' || displayMode === 'fluid') {
                 return this.renderXs(item, settings, 25, '50k/200k');
             }
             const usedDisplay = formatTokens(50000, tokenFormat, 0);
@@ -185,7 +190,7 @@ export class ContextBarWidget implements Widget {
         const totalDisplay = formatTokens(total, tokenFormat, 0);
         const percentDisplay = formatPercent(clampedPercent, percentFormat, 0);
 
-        if (displayMode === 'progress-xs') {
+        if (displayMode === 'progress-xs' || displayMode === 'fluid') {
             return this.renderXs(item, settings, clampedPercent, `${Math.round(used / 1000)}k/${Math.round(total / 1000)}k`);
         }
 
@@ -208,7 +213,7 @@ export class ContextBarWidget implements Widget {
         if (item && !isBarSliderMode(getDisplayMode(item))) {
             keybinds.push({ key: 'b', label: '(b)ar style', action: 'cycle-bar-style' });
         }
-        if (item && getDisplayMode(item) === 'progress-xs') {
+        if (item && ['progress-xs', 'fluid'].includes(getDisplayMode(item))) {
             keybinds.push(
                 { key: 'e', label: 'show p(e)rcent', action: 'toggle-percent' },
                 { key: 'u', label: 'show (u)sage', action: 'toggle-usage' }

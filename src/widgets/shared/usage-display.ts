@@ -17,7 +17,7 @@ import {
     toggleMetadataFlag
 } from './metadata';
 
-export type UsageDisplayMode = 'time' | 'progress' | 'progress-short' | 'progress-xs' | 'slider' | 'slider-only';
+export type UsageDisplayMode = 'time' | 'progress' | 'progress-short' | 'progress-xs' | 'fluid' | 'slider' | 'slider-only';
 
 // Shared by the usage percentage widgets and the reset timers, which render the
 // same error placeholders
@@ -42,14 +42,14 @@ const LOCALE_KEYBIND: CustomKeybind = { key: 'l', label: '(l)ocale', action: 'ed
 
 export function getUsageDisplayMode(item: WidgetItem): UsageDisplayMode {
     const mode = item.metadata?.display;
-    if (mode === 'progress' || mode === 'progress-short' || mode === 'progress-xs' || mode === 'slider' || mode === 'slider-only') {
+    if (mode === 'progress' || mode === 'progress-short' || mode === 'progress-xs' || mode === 'fluid' || mode === 'slider' || mode === 'slider-only') {
         return mode;
     }
     return 'time';
 }
 
 export function isUsageProgressMode(mode: UsageDisplayMode): boolean {
-    return mode === 'progress' || mode === 'progress-short' || mode === 'progress-xs';
+    return mode === 'progress' || mode === 'progress-short' || mode === 'progress-xs' || mode === 'fluid';
 }
 
 export function isUsageSliderMode(mode: UsageDisplayMode): boolean {
@@ -94,11 +94,12 @@ export function toggleUsagePercent(item: WidgetItem): WidgetItem {
     return toggleMetadataFlag(item, 'showPercent');
 }
 
-// The xs bar is bracket-less and shows its percent only when showPercent is set.
+// The xs and fluid bars are bracket-less and show their percent only when showPercent is set.
+// A fluid bar squeezed down to 0 cells is empty, leaving just the percent (or nothing).
 // Only the blocks style keeps its brackets on the longer bars; the other styles frame themselves.
 export function formatUsageProgress(item: WidgetItem, mode: UsageDisplayMode, bar: string, percentText: string, style: BarStyle = 'blocks'): string {
-    if (mode === 'progress-xs') {
-        return isUsagePercentShown(item) ? `${bar} ${percentText}` : bar;
+    if (mode === 'progress-xs' || mode === 'fluid') {
+        return [bar, isUsagePercentShown(item) ? percentText : ''].filter(Boolean).join(' ');
     }
     return style === 'blocks' ? `[${bar}] ${percentText}` : `${bar} ${percentText}`;
 }
@@ -222,8 +223,8 @@ export function getUsageDisplayModifierText(
         modifiers.push('long bar');
     } else if (mode === 'progress-short') {
         modifiers.push('medium bar');
-    } else if (mode === 'progress-xs') {
-        modifiers.push('tiny bar');
+    } else if (mode === 'progress-xs' || mode === 'fluid') {
+        modifiers.push(mode === 'fluid' ? 'fluid bar' : 'tiny bar');
         if (isUsagePercentShown(item)) {
             modifiers.push('percent');
         }
@@ -327,7 +328,7 @@ export function getUsagePercentCustomKeybinds(item?: WidgetItem, includeCursor =
         if (isUsageProgressMode(mode) || isUsageSliderMode(mode)) {
             keybinds.push(CURSOR_TOGGLE_KEYBIND);
         }
-        if (mode === 'progress-xs') {
+        if (mode === 'progress-xs' || mode === 'fluid') {
             keybinds.push(PERCENT_TOGGLE_KEYBIND);
         }
     }
@@ -358,7 +359,7 @@ export function getUsageTimerCustomKeybinds(
 
     if (item && isBarMode) {
         keybinds.push(INVERT_TOGGLE_KEYBIND);
-        if (mode === 'progress-xs') {
+        if (mode === 'progress-xs' || mode === 'fluid') {
             keybinds.push(PERCENT_TOGGLE_KEYBIND);
         }
         if (isUsageProgressMode(mode)) {

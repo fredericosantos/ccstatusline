@@ -56,6 +56,8 @@ export interface RenderContext {
     skillsMetrics?: SkillsMetrics | null;
     compactionData?: CompactionData | null;
     terminalWidth?: number | null;
+    // Render the line at its natural width: no truncation and no flex expansion (used to size fluid bars)
+    measureNatural?: boolean;
     isPreview?: boolean;
     minimalist?: boolean;
     gitCacheTtlSeconds?: number;

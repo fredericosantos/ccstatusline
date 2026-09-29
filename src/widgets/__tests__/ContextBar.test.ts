@@ -14,6 +14,7 @@ import * as usage from '../../utils/usage';
 import { ContextBarWidget } from '../ContextBar';
 import { ContextLengthWidget } from '../ContextLength';
 import { ContextWindowWidget } from '../ContextWindow';
+import { withFluidCells } from '../shared/progress-bar';
 
 describe('ContextBarWidget', () => {
     beforeEach(() => {
@@ -205,6 +206,31 @@ describe('ContextBarWidget', () => {
             expect(on?.metadata?.showPercent).toBe('true');
             expect(usage?.metadata?.showUsage).toBe('true');
             expect(widget.getCustomKeybinds(xs()).map(k => k.action)).toEqual(['toggle-progress', 'cycle-bar-style', 'toggle-percent', 'toggle-usage']);
+        });
+    });
+
+    describe('fluid mode', () => {
+        const usage = { input_tokens: 20000, output_tokens: 10000, cache_creation_input_tokens: 5000, cache_read_input_tokens: 5000 };
+        const context: RenderContext = { data: { context_window: { context_window_size: 200000, current_usage: usage } } };
+        const fluid = (cells: number, metadata: Record<string, string> = {}): WidgetItem => withFluidCells({
+            id: 'ctx',
+            type: 'context-bar',
+            metadata: { display: 'fluid', ...metadata }
+        }, cells);
+
+        it('renders the number of cells the renderer stamped, without brackets', () => {
+            expect(new ContextBarWidget().render(fluid(7), context, DEFAULT_SETTINGS)).toBe('Context: █░░░░░░');
+            expect(new ContextBarWidget().render(fluid(3, { showPercent: 'true' }), context, DEFAULT_SETTINGS)).toBe('Context: ░░░ 15%');
+        });
+
+        it('collapses to the percent, or to nothing, at zero cells', () => {
+            const widget = new ContextBarWidget();
+            expect(widget.render(fluid(0, { showPercent: 'true' }), context, DEFAULT_SETTINGS)).toBe('Context: 15%');
+            expect(widget.render(fluid(0), context, DEFAULT_SETTINGS)).toBe('');
+        });
+
+        it('offers the same toggles as progress-xs', () => {
+            expect(new ContextBarWidget().getCustomKeybinds(fluid(5)).map(k => k.action)).toEqual(['toggle-progress', 'cycle-bar-style', 'toggle-percent', 'toggle-usage']);
         });
     });
 

@@ -344,6 +344,23 @@ An orange (Claude) look:
 }
 ```
 
+### Fluid bars
+
+Set a widget's `metadata.display` to `"fluid"` and its bar grows and shrinks with the terminal instead of staying at a fixed 5, 16 or 32 cells. It draws like the `progress-xs` bar (no brackets; the percent shows only with `showPercent`) in whatever style is active.
+
+```json
+{ "id": "1", "type": "session-usage", "metadata": { "display": "fluid", "showPercent": "true" } }
+```
+
+| Setting | Widget `metadata` | Default | Meaning |
+| --- | --- | --- | --- |
+| `progressBarMin` | `barMin` | `3` | used as the size when the terminal width is unknown (5 kept inside `barMin`..`barMax`) |
+| `progressBarMax` | `barMax` | `10` | a bar never grows beyond this many cells |
+
+Each line is sized on its own: the widths of everything that is not a fluid bar (text, separators, padding, percent labels) are subtracted from the effective terminal width (`flexMode` still applies, so `full` leaves 6 columns and `full-minus-40` leaves 40), and the rest is split equally between the line's fluid bars, up to `barMax`. Left-over cells go to the first bars. The pill style reserves 2 extra cells per bar for its caps. When the line is too narrow the bars shrink further, down to 0 cells, which leaves just the percent (or nothing without `showPercent`); the usual right-edge truncation is only the last resort. A `flex-separator` on the same line gets whatever the bars do not use, because bars stop at `barMax`. Values that are not non-negative whole numbers are ignored, and a `barMin` above `barMax` is lowered to `barMax`.
+
+The width is measured each time ccstatusline renders. Claude Code re-runs the status line when the conversation updates; whether a bare terminal resize re-runs it has not been verified, so the bars may only adjust on the next update. `display: "fluid"` is set in `settings.json` (or `p` cycles away from it); the TUI does not cycle into it.
+
 <br />
 
 ## 🌐 Localizations

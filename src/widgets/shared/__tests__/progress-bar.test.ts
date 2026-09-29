@@ -17,13 +17,18 @@ import {
 } from '../../../utils/colors';
 import {
     BAR_COLORS,
+    allocateFluidCells,
     barOptionsFor,
+    barOverhead,
+    fluidBarCells,
     getBarFillColor,
     makeStyledBar,
     renderUsageBar,
     resolveBarColor,
     resolveBarStyle,
-    resolveBarSymbol
+    resolveBarSymbol,
+    resolveFluidLimits,
+    withFluidCells
 } from '../progress-bar';
 import { cycleBarStyle } from '../usage-display';
 
@@ -289,5 +294,135 @@ describe('cycleBarStyle', () => {
         }
         expect(seen).toEqual(['dots', 'pill', 'line', 'blocks', undefined]);
         expect(current.metadata).toEqual({ display: 'progress' });
+    });
+});
+
+describe('fluid bars', () => {
+    let previousLevel: typeof chalk.level;
+
+    beforeEach(() => {
+        previousLevel = chalk.level;
+        chalk.level = 3;
+        updateColorMap();
+    });
+
+    afterEach(() => {
+        chalk.level = previousLevel;
+        updateColorMap();
+    });
+
+    describe('resolveFluidLimits', () => {
+        it('defaults to 3..10', () => {
+            expect(resolveFluidLimits(item(), DEFAULT_SETTINGS)).toEqual({ min: 3, max: 10 });
+        });
+
+        it('takes widget metadata over the global settings over the defaults', () => {
+            const global = { ...DEFAULT_SETTINGS, progressBarMin: 2, progressBarMax: 8 };
+            expect(resolveFluidLimits(item(), global)).toEqual({ min: 2, max: 8 });
+            expect(resolveFluidLimits(item({ barMin: '4', barMax: '6' }), global)).toEqual({ min: 4, max: 6 });
+        });
+
+        it.each(['abc', '-1', '2.5', '', ' '])('ignores the invalid metadata value %j', (bad) => {
+            expect(resolveFluidLimits(item({ barMin: bad, barMax: bad }), DEFAULT_SETTINGS)).toEqual({ min: 3, max: 10 });
+        });
+
+        it('ignores negative or fractional global values', () => {
+            expect(resolveFluidLimits(item(), { ...DEFAULT_SETTINGS, progressBarMin: -2, progressBarMax: 4.5 })).toEqual({ min: 3, max: 10 });
+        });
+
+        it('never lets min exceed max', () => {
+            expect(resolveFluidLimits(item({ barMax: '2' }), DEFAULT_SETTINGS)).toEqual({ min: 2, max: 2 });
+            expect(resolveFluidLimits(item({ barMax: '0' }), DEFAULT_SETTINGS)).toEqual({ min: 0, max: 0 });
+        });
+    });
+
+    describe('allocateFluidCells', () => {
+        const bar = (max = 10, overhead = 0): { max: number; overhead: number } => ({ max, overhead });
+
+        it('gives one bar all the room up to its max', () => {
+            expect(allocateFluidCells(7, [bar()])).toEqual([7]);
+            expect(allocateFluidCells(40, [bar()])).toEqual([10]);
+        });
+
+        it('splits the room equally and hands the remainder to the first bars', () => {
+            expect(allocateFluidCells(21, [bar(), bar(), bar()])).toEqual([7, 7, 7]);
+            expect(allocateFluidCells(23, [bar(), bar(), bar()])).toEqual([8, 8, 7]);
+            expect(allocateFluidCells(7, [bar(), bar(), bar()])).toEqual([3, 2, 2]);
+        });
+
+        it('caps every bar at its own max', () => {
+            expect(allocateFluidCells(100, [bar(), bar(), bar()])).toEqual([10, 10, 10]);
+            expect(allocateFluidCells(40, [bar(4), bar(10)])).toEqual([4, 10]);
+        });
+
+        it('shrinks to nothing when the line is too narrow, never below zero', () => {
+            expect(allocateFluidCells(0, [bar(), bar()])).toEqual([0, 0]);
+            expect(allocateFluidCells(-9, [bar(), bar()])).toEqual([0, 0]);
+            expect(allocateFluidCells(1, [bar(), bar(), bar()])).toEqual([1, 0, 0]);
+        });
+
+        it('reserves the pill caps before sharing', () => {
+            expect(allocateFluidCells(20, [bar(10, 2), bar(10, 2)])).toEqual([8, 8]);
+            expect(allocateFluidCells(3, [bar(10, 2), bar(10, 2)])).toEqual([0, 0]);
+        });
+
+        it('never overshoots the room it was given', () => {
+            for (let room = 0; room <= 45; room++) {
+                for (const overhead of [0, 2]) {
+                    const cells = allocateFluidCells(room, [bar(10, overhead), bar(10, overhead), bar(6, overhead)]);
+                    const used = cells.reduce((sum, c) => sum + (c > 0 ? c + overhead : 0), 0);
+                    expect(used).toBeLessThanOrEqual(Math.max(0, room));
+                }
+            }
+        });
+    });
+
+    describe('fluidBarCells', () => {
+        it('falls back to 5 cells kept inside the limits when the renderer gave no share', () => {
+            expect(fluidBarCells(item(), DEFAULT_SETTINGS)).toBe(5);
+            expect(fluidBarCells(item({ barMax: '4' }), DEFAULT_SETTINGS)).toBe(4);
+            expect(fluidBarCells(item({ barMin: '7' }), DEFAULT_SETTINGS)).toBe(7);
+        });
+
+        it('uses the stamped share, capped at the max', () => {
+            expect(fluidBarCells(withFluidCells(item(), 7), DEFAULT_SETTINGS)).toBe(7);
+            expect(fluidBarCells(withFluidCells(item(), 0), DEFAULT_SETTINGS)).toBe(0);
+            expect(fluidBarCells(withFluidCells(item(), 12), DEFAULT_SETTINGS)).toBe(10);
+        });
+    });
+
+    it('adds the pill caps as overhead only for the pill style', () => {
+        expect(barOverhead(item(), settings('pill'))).toBe(2);
+        expect(barOverhead(item(), settings('dots'))).toBe(0);
+        expect(barOverhead(item({ barStyle: 'pill' }), settings('dots'))).toBe(2);
+    });
+
+    it.each(['dots', 'pill', 'line', 'blocks'] as const)('%s renders nothing at zero cells', (style) => {
+        expect(makeStyledBar(50, 0, { style })).toBe('');
+    });
+
+    describe('renderUsageBar in fluid mode', () => {
+        const fluid = (cells: number, extra: Record<string, string> = {}): WidgetItem => withFluidCells(item({ display: 'fluid', showPercent: 'true', ...extra }), cells);
+
+        it('draws the stamped number of symbols, bracket-less, with the percent', () => {
+            expect(strip(renderUsageBar(fluid(4), settings(), 'fluid', 35, '35%'))).toBe('●●●● 35%');
+            expect(strip(renderUsageBar(fluid(7), settings('line'), 'fluid', 35, '35%'))).toBe('━━━━━━━ 35%');
+            expect(strip(renderUsageBar(fluid(7), settings('blocks'), 'fluid', 35, '35%'))).toBe('██░░░░░ 35%');
+        });
+
+        it('counts the pill caps on top of the cells', () => {
+            expect(getVisibleWidth(renderUsageBar(fluid(4), settings('pill'), 'fluid', 35, '35%'))).toBe(4 + 2 + 1 + 3);
+        });
+
+        it('collapses to just the percent at zero cells, or to nothing without showPercent', () => {
+            expect(renderUsageBar(fluid(0), settings(), 'fluid', 35, '35%')).toBe('35%');
+            expect(renderUsageBar(withFluidCells(item({ display: 'fluid' }), 0), settings(), 'fluid', 35, '35%')).toBe('');
+        });
+
+        it('keeps the blend at the boundary of the shorter bar', () => {
+            const bar = renderUsageBar(fluid(4), settings(), 'fluid', 35, '35%');
+            // 35% of 4 dots: dot 1 full, dot 2 is 40% into its slice
+            expect(bar).toContain('\x1b[38;2;255;255;255m●');
+        });
     });
 });

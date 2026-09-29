@@ -84,6 +84,10 @@ export const SettingsSchema = z.object({
     progressBarSymbol: z.string().optional(),
     // Turn consumption bars amber / red near the limit; metadata.escalate overrides per widget
     progressBarEscalate: z.boolean().optional(),
+    // Cell range of `display: 'fluid'` bars (3..10 when unset); metadata.barMin / barMax override per widget.
+    // Validated where used (non-negative integers), so a bad value falls back instead of invalidating the config
+    progressBarMin: z.number().optional(),
+    progressBarMax: z.number().optional(),
     numberFormat: GlobalNumberFormatSchema.optional(),
     gitCacheTtlSeconds: z.number().min(0).max(60).default(5),
     // How long a "no TTY" result is reused for the same session, in seconds.

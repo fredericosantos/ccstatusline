@@ -125,6 +125,10 @@ export function barOptionsFor(item: WidgetItem, settings: Settings, consumedPerc
 }
 
 export function makeStyledBar(percent: number, width: number, options: StyledBarOptions): string {
+    // A fluid bar squeezed down to nothing takes no space at all, caps included
+    if (width <= 0) {
+        return '';
+    }
     if (options.style === 'blocks') {
         return makeTimerProgressBar(percent, width, options);
     }
@@ -161,6 +165,54 @@ export function makeStyledBar(percent: number, width: number, options: StyledBar
     }) + FG_OFF;
 }
 
+const DEFAULT_FLUID_MIN = 3;
+const DEFAULT_FLUID_MAX = 10;
+// Cells a fluid bar takes before the terminal width is known
+const FLUID_FALLBACK_CELLS = 5;
+const PILL_CAPS = 2;
+
+export function isFluidBar(item: WidgetItem): boolean {
+    return item.metadata?.display === 'fluid';
+}
+
+// Non-negative integers only; anything else (text, decimals, negatives) is ignored
+function toCount(value: string | number | undefined): number | undefined {
+    const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+    return typeof n === 'number' && Number.isInteger(n) && n >= 0 ? n : undefined;
+}
+
+// metadata.barMin / barMax, then progressBarMin / progressBarMax, then 3 / 10. min never exceeds max.
+export function resolveFluidLimits(item: WidgetItem, settings: Settings): { min: number; max: number } {
+    const max = toCount(item.metadata?.barMax) ?? toCount(settings.progressBarMax) ?? DEFAULT_FLUID_MAX;
+    const min = toCount(item.metadata?.barMin) ?? toCount(settings.progressBarMin) ?? DEFAULT_FLUID_MIN;
+    return { min: Math.min(min, max), max };
+}
+
+// Extra cells a style adds around the bar (the pill's rounded caps) once the bar has any cell at all
+export function barOverhead(item: WidgetItem, settings: Settings): number {
+    return resolveBarStyle(item, settings) === 'pill' ? PILL_CAPS : 0;
+}
+
+// The renderer stamps the line's share into fluidCells on the copy it renders; without it (width unknown, TUI
+// editor) a fluid bar takes 5 cells kept inside its limits
+export function fluidBarCells(item: WidgetItem, settings: Settings): number {
+    const { min, max } = resolveFluidLimits(item, settings);
+    return Math.min(max, toCount(item.metadata?.fluidCells) ?? Math.max(min, FLUID_FALLBACK_CELLS));
+}
+
+export function withFluidCells(item: WidgetItem, cells: number): WidgetItem {
+    return { ...item, metadata: { ...item.metadata, fluidCells: String(cells) } };
+}
+
+// Splits the room left on a line between its fluid bars: an equal share each (first bars take the remainder),
+// capped at each bar's max. Bars that would get nothing vanish along with their overhead. Never overshoots `available`.
+export function allocateFluidCells(available: number, bars: { max: number; overhead: number }[]): number[] {
+    const budget = Math.max(0, available - bars.reduce((sum, bar) => sum + bar.overhead, 0));
+    const base = Math.floor(budget / Math.max(1, bars.length));
+    const extra = budget - base * bars.length;
+    return bars.map((bar, i) => Math.min(bar.max, base + (i < extra ? 1 : 0)));
+}
+
 interface UsageBarOptions {
     // Consumption widgets fill up with use and may turn amber / red (opt-in); timers never do
     escalate?: boolean;
@@ -178,7 +230,8 @@ export function renderUsageBar(
 ): string {
     const consumed = options.escalate === true ? (isUsageInverted(item) ? 100 - percent : percent) : undefined;
     const barOptions = barOptionsFor(item, settings, consumed);
-    const bar = makeStyledBar(percent, getUsageProgressBarWidth(mode), { ...barOptions, cursorPercent: options.cursor?.cursorPercent });
+    const width = mode === 'fluid' ? fluidBarCells(item, settings) : getUsageProgressBarWidth(mode);
+    const bar = makeStyledBar(percent, width, { ...barOptions, cursorPercent: options.cursor?.cursorPercent });
 
     return formatUsageProgress(item, mode, bar, percentText, barOptions.style);
 }
