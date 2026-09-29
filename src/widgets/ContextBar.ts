@@ -24,6 +24,7 @@ import {
 } from './shared/metadata';
 import {
     barOptionsFor,
+    escalatePercentText,
     fluidBarCells,
     makeStyledBar
 } from './shared/progress-bar';
@@ -132,7 +133,7 @@ export class ContextBarWidget implements Widget {
         const width = getDisplayMode(item) === 'fluid' ? fluidBarCells(item, settings) : 5;
         const parts = [this.makeBar(item, settings, percent, width, false)].filter(Boolean);
         if (isMetadataFlagEnabled(item, 'showPercent')) {
-            parts.push(`${Math.round(percent)}%`);
+            parts.push(escalatePercentText(item, settings, `${Math.round(percent)}%`, percent, true));
         }
         if (isMetadataFlagEnabled(item, 'showUsage')) {
             parts.push(usageText);
@@ -188,7 +189,7 @@ export class ContextBarWidget implements Widget {
         const clampedPercent = Math.max(0, Math.min(100, percent));
         const usedDisplay = formatTokens(used, tokenFormat, 0);
         const totalDisplay = formatTokens(total, tokenFormat, 0);
-        const percentDisplay = formatPercent(clampedPercent, percentFormat, 0);
+        const percentDisplay = escalatePercentText(item, settings, formatPercent(clampedPercent, percentFormat, 0), clampedPercent, true);
 
         if (displayMode === 'progress-xs' || displayMode === 'fluid') {
             return this.renderXs(item, settings, clampedPercent, `${Math.round(used / 1000)}k/${Math.round(total / 1000)}k`);

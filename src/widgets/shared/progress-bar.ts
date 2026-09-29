@@ -92,6 +92,32 @@ export function resolveBarStyle(item: WidgetItem, settings: Settings): BarStyle 
     return BAR_STYLES.find(style => style === override) ?? settings.progressBarStyle ?? 'dots';
 }
 
+interface TextEscalationStep { at: number; color: string }
+
+// progressTextEscalation as steps sorted by `at`; malformed steps are skipped, nothing valid means off
+export function resolveTextEscalation(settings: Settings): TextEscalationStep[] {
+    const raw = settings.progressTextEscalation;
+    if (!Array.isArray(raw)) {
+        return [];
+    }
+    return raw.flatMap((step: unknown) => {
+        const { at, color } = (step ?? {}) as { at?: unknown; color?: unknown };
+        const hex = typeof color === 'string' ? resolveBarColor(color, '') : '';
+        return typeof at === 'number' && Number.isFinite(at) && hex ? [{ at, color: hex }] : [];
+    }).sort((a, b) => a.at - b.at);
+}
+
+// Colours only the percent text of a bar widget with the last step at or below the used share; below the first
+// step it keeps the widget's colour. Consumption widgets opt in by default, timers via metadata.textEscalation.
+export function escalatePercentText(item: WidgetItem, settings: Settings, text: string, usedPercent: number, consumption: boolean): string {
+    const flag = item.metadata?.textEscalation;
+    if (chalk.level === 0 || flag === 'false' || (flag !== 'true' && !consumption)) {
+        return text;
+    }
+    const color = resolveTextEscalation(settings).filter(step => step.at <= usedPercent).pop()?.color;
+    return color ? `${open(color)}${text}${FG_OFF}` : text;
+}
+
 export function getBarFillColor(usedPercent?: number, base: string = BAR_COLORS.fill): string {
     if (usedPercent === undefined) {
         return base;
@@ -228,10 +254,10 @@ export function renderUsageBar(
     percentText: string,
     options: UsageBarOptions = {}
 ): string {
-    const consumed = options.escalate === true ? (isUsageInverted(item) ? 100 - percent : percent) : undefined;
-    const barOptions = barOptionsFor(item, settings, consumed);
+    const used = isUsageInverted(item) ? 100 - percent : percent;
+    const barOptions = barOptionsFor(item, settings, options.escalate === true ? used : undefined);
     const width = mode === 'fluid' ? fluidBarCells(item, settings) : getUsageProgressBarWidth(mode);
     const bar = makeStyledBar(percent, width, { ...barOptions, cursorPercent: options.cursor?.cursorPercent });
 
-    return formatUsageProgress(item, mode, bar, percentText, barOptions.style);
+    return formatUsageProgress(item, mode, bar, escalatePercentText(item, settings, percentText, used, options.escalate === true), barOptions.style);
 }

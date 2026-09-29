@@ -84,6 +84,9 @@ export const SettingsSchema = z.object({
     progressBarSymbol: z.string().optional(),
     // Turn consumption bars amber / red near the limit; metadata.escalate overrides per widget
     progressBarEscalate: z.boolean().optional(),
+    // Percent-text colour steps [{ at: 60, color: '#E5B454' }, ...] for bar widgets; off when unset.
+    // Validated where used, so a malformed step is skipped instead of invalidating the config
+    progressTextEscalation: z.array(z.unknown()).optional(),
     // Cell range of `display: 'fluid'` bars (3..10 when unset); metadata.barMin / barMax override per widget.
     // Validated where used (non-negative integers), so a bad value falls back instead of invalidating the config
     progressBarMin: z.number().optional(),

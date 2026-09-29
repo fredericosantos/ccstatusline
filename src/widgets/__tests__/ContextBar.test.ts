@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import {
     afterEach,
     beforeEach,
@@ -206,6 +207,32 @@ describe('ContextBarWidget', () => {
             expect(on?.metadata?.showPercent).toBe('true');
             expect(usage?.metadata?.showUsage).toBe('true');
             expect(widget.getCustomKeybinds(xs()).map(k => k.action)).toEqual(['toggle-progress', 'cycle-bar-style', 'toggle-percent', 'toggle-usage']);
+        });
+    });
+
+    describe('percent text escalation', () => {
+        const context: RenderContext = { data: { context_window: { context_window_size: 200000, current_usage: { input_tokens: 170000, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } };
+        const settings = { ...DEFAULT_SETTINGS, progressTextEscalation: [{ at: 60, color: '#E5B454' }, { at: 80, color: '#D97757' }] };
+        let level: typeof chalk.level;
+        beforeEach(() => {
+            level = chalk.level;
+            chalk.level = 3;
+        });
+        afterEach(() => {
+            chalk.level = level;
+        });
+
+        it('colours only the percent of the xs bar and follows the used share', () => {
+            const item: WidgetItem = { id: 'ctx', type: 'context-bar', rawValue: true, metadata: { display: 'progress-xs', showPercent: 'true' } };
+            const out = new ContextBarWidget().render(item, context, settings) ?? '';
+            expect(out.endsWith('\x1b[38;2;217;119;87m85%\x1b[39m')).toBe(true);
+            expect(new ContextBarWidget().render(item, context, DEFAULT_SETTINGS)?.includes('85%')).toBe(true);
+            expect(new ContextBarWidget().render(item, context, DEFAULT_SETTINGS)).not.toContain('\x1b[38;2;217;119;87m85%');
+        });
+
+        it('colours the percent in the long modes too', () => {
+            const item: WidgetItem = { id: 'ctx', type: 'context-bar', rawValue: true, metadata: { display: 'progress' } };
+            expect(new ContextBarWidget().render(item, context, settings)).toContain('(\x1b[38;2;217;119;87m85%\x1b[39m)');
         });
     });
 

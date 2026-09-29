@@ -20,6 +20,7 @@ import {
     allocateFluidCells,
     barOptionsFor,
     barOverhead,
+    escalatePercentText,
     fluidBarCells,
     getBarFillColor,
     makeStyledBar,
@@ -28,6 +29,7 @@ import {
     resolveBarStyle,
     resolveBarSymbol,
     resolveFluidLimits,
+    resolveTextEscalation,
     withFluidCells
 } from '../progress-bar';
 import { cycleBarStyle } from '../usage-display';
@@ -258,6 +260,81 @@ describe('bar styles', () => {
         it('falls back to blocks without colour support', () => {
             chalk.level = 0;
             expect(resolveBarStyle(item({ barStyle: 'pill' }), settings('pill'))).toBe('blocks');
+        });
+    });
+
+    describe('percent text escalation', () => {
+        const steps = [{ at: 60, color: '#E5B454' }, { at: 80, color: '#D97757' }, { at: 90, color: '#D4574A' }];
+        const on: Settings = { ...settings(), progressTextEscalation: steps };
+        // Colour code that opens the percent text (the last "<code>NN%" of the render), as hex
+        const textColor = (out: string): string | undefined => {
+            const m = [...out.matchAll(/\x1b\[38;2;(\d+);(\d+);(\d+)m(\d+(?:\.\d)?%)/g)].pop();
+            return m ? '#' + [m[1], m[2], m[3]].map(n => Number(n).toString(16).padStart(2, '0')).join('') : undefined;
+        };
+        const render = (percent: number, meta: Record<string, string> = {}, options: { escalate?: boolean } = { escalate: true }, config: Settings = on): string => renderUsageBar(item({ display: 'progress-xs', showPercent: 'true', ...meta }), config, 'progress-xs', percent, `${percent}%`, options);
+
+        it('picks the last step at or below the used share', () => {
+            const expected: [number, string | undefined][] = [
+                [0, undefined], [59, undefined], [60, '#e5b454'], [79, '#e5b454'],
+                [80, '#d97757'], [89, '#d97757'], [90, '#d4574a'], [100, '#d4574a']
+            ];
+            for (const [percent, color] of expected) {
+                expect(textColor(render(percent))).toBe(color);
+            }
+        });
+
+        it('leaves the bar glyph colours alone', () => {
+            const plain = render(95, {}, { escalate: true }, settings());
+            const escalated = render(95);
+            expect(strip(escalated)).toBe(strip(plain));
+            expect(escalated.replace(/\x1b\[38;2;212;87;74m(95%)\x1b\[39m/, '$1')).toBe(plain);
+        });
+
+        it('sorts the steps and skips malformed ones without throwing', () => {
+            const messy: Settings = {
+                ...settings(),
+                progressTextEscalation: [{ at: 90, color: '#D4574A' }, null, 'x', { at: 'a', color: '#fff' }, { at: 60, color: 'nope' }, { at: Number.NaN, color: '#fff' }, { at: 60, color: '#E5B454' }, { at: 50 }]
+            };
+            expect(resolveTextEscalation(messy)).toEqual([{ at: 60, color: '#E5B454' }, { at: 90, color: '#D4574A' }]);
+            expect(textColor(render(70, {}, { escalate: true }, messy))).toBe('#e5b454');
+            expect(resolveTextEscalation({ ...settings(), progressTextEscalation: 'red' as unknown as unknown[] })).toEqual([]);
+            expect(resolveTextEscalation({ ...settings(), progressTextEscalation: [] })).toEqual([]);
+        });
+
+        it('is off unless configured', () => {
+            expect(textColor(render(95, {}, { escalate: true }, settings()))).toBeUndefined();
+            expect(textColor(render(95, {}, { escalate: true }, { ...settings(), progressTextEscalation: [] }))).toBeUndefined();
+        });
+
+        it('lets the widget force it off, or on for a timer, but timers are off by default', () => {
+            expect(textColor(render(95, { textEscalation: 'false' }))).toBeUndefined();
+            expect(textColor(render(95, {}, {}))).toBeUndefined();
+            expect(textColor(render(95, { textEscalation: 'true' }, {}))).toBe('#d4574a');
+        });
+
+        it('uses the used share for an inverted widget', () => {
+            // 20% remaining = 80% used
+            expect(textColor(render(20, { invert: 'true' }))).toBe('#d97757');
+            // 95% remaining = 5% used
+            expect(textColor(render(95, { invert: 'true' }))).toBeUndefined();
+        });
+
+        it('still colours the percent when a fluid bar has collapsed to zero cells', () => {
+            const collapsed = renderUsageBar(withFluidCells(item({ display: 'fluid', showPercent: 'true' }), 0), on, 'fluid', 95, '95%', { escalate: true });
+            expect(collapsed).toBe(`${fg('#D4574A')}95%\x1b[39m`);
+        });
+
+        it('leaves the text alone without colour support', () => {
+            chalk.level = 0;
+            expect(escalatePercentText(item(), on, '95%', 95, true)).toBe('95%');
+        });
+
+        it('keeps the widget colours around and after the coloured percent', () => {
+            const wrapped = applyColors(`${render(95)} left`, 'white', 'bgBlue', false, 'truecolor');
+            const outerFg = /\x1b\[38;2;\d+;\d+;\d+m/.exec(applyColors('x', 'white', 'bgBlue', false, 'truecolor'))?.[0] ?? '';
+
+            expect(wrapped).toContain(`${fg('#D4574A')}95%\x1b[39m${outerFg} left`);
+            expect(wrapped.split('\x1b[39m').slice(1, -1).every(part => part.startsWith(outerFg))).toBe(true);
         });
     });
 

@@ -344,6 +344,26 @@ An orange (Claude) look:
 }
 ```
 
+### Percent text escalation
+
+`progressTextEscalation` recolours only the percent text (for example `85%`) as the bar fills up; the bar glyphs keep their colours. It is a list of steps, and the last step whose `at` is at or below the used share wins. Below the first step the widget keeps its own colour (for example white). It is off when unset.
+
+```json
+{
+  "progressTextEscalation": [
+    { "at": 60, "color": "#E5B454" },
+    { "at": 80, "color": "#D97757" },
+    { "at": 90, "color": "#D4574A" }
+  ]
+}
+```
+
+That is yellow from 60%, orange from 80% and red from 90%. `color` takes `#RRGGBB`, `hex:RRGGBB` or a colour name. Steps may come in any order, and malformed steps are skipped without an error.
+
+- **Which widgets:** consumption widgets (session, weekly and extra usage, context bar) follow the used share, which is `100 - shown` for an inverted widget. Timers (block timer, block reset, weekly reset) stay unchanged unless you set `metadata.textEscalation` to `"true"` on them.
+- **Per widget:** `metadata.textEscalation` set to `"false"` turns it off for one widget, and `"true"` turns it on with the global steps.
+- **Colour support:** it does nothing with `colorLevel: 0`. Fluid bars that shrink to zero cells still colour the percent text.
+
 ### Fluid bars
 
 Set a widget's `metadata.display` to `"fluid"` and its bar grows and shrinks with the terminal instead of staying at a fixed 5, 16 or 32 cells. It draws like the `progress-xs` bar (no brackets; the percent shows only with `showPercent`) in whatever style is active.
