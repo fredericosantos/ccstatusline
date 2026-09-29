@@ -57,6 +57,15 @@ function formatEffort(resolved: ResolvedThinkingEffort | null): string {
     return resolved.known ? resolved.value : `${resolved.value}?`;
 }
 
+// The effort as ThinkingEffort shows it; null when unset, or medium unless showMedium
+export function getEffortLabel(context: RenderContext, showMedium = false): string | null {
+    const resolved = resolveThinkingEffort(context);
+    if (!resolved || (resolved.known && resolved.value === 'medium' && !showMedium)) {
+        return null;
+    }
+    return formatEffort(resolved);
+}
+
 export class ThinkingEffortWidget implements Widget {
     getDefaultColor(): string { return 'magenta'; }
     getDescription(): string { return 'Displays the current thinking effort level (low, medium, high, xhigh, max).\nClaude Code reports Ultracode as xhigh in status line data; Ultracode is not exposed as a separate effort level.\nUnknown levels are shown with a trailing "?" (e.g. "super-max?").\nMay be incorrect when multiple Claude Code sessions are running due to current Claude Code limitations.'; }
@@ -71,11 +80,10 @@ export class ThinkingEffortWidget implements Widget {
             return item.rawValue ? 'high' : 'Thinking: high';
         }
 
-        const resolved = resolveThinkingEffort(context);
-        if (!resolved || (resolved.known && resolved.value === 'medium')) {
+        const effort = getEffortLabel(context);
+        if (!effort) {
             return null;
         }
-        const effort = formatEffort(resolved);
         return item.rawValue ? effort : `Thinking: ${effort}`;
     }
 

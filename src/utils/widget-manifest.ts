@@ -88,6 +88,7 @@ export const WIDGET_MANIFEST: WidgetManifestEntry[] = [
     { type: 'session-usage', create: () => new widgets.SessionUsageWidget() },
     { type: 'session-pace', create: () => new widgets.SessionPaceWidget() },
     { type: 'weekly-pace', create: () => new widgets.WeeklyPaceWidget() },
+    { type: 'model-effort', create: () => new widgets.ModelEffortWidget() },
     { type: 'weekly-usage', create: () => new widgets.WeeklyUsageWidget() },
     { type: 'extra-usage-utilization', create: () => new widgets.ExtraUsageUtilizationWidget() },
     { type: 'extra-usage-remaining', create: () => new widgets.ExtraUsageRemainingWidget() },

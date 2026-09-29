@@ -66,6 +66,7 @@ export { FreeMemoryWidget } from './FreeMemory';
 export { SessionNameWidget } from './SessionName';
 export { SessionUsageWidget } from './SessionUsage';
 export { SessionPaceWidget, WeeklyPaceWidget } from './PaceBars';
+export { ModelEffortWidget } from './ModelEffort';
 export { WeeklyUsageWidget } from './WeeklyUsage';
 export { ExtraUsageUtilizationWidget } from './ExtraUsageUtilization';
 export { ExtraUsageRemainingWidget } from './ExtraUsageRemaining';

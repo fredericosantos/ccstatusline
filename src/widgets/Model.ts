@@ -6,6 +6,20 @@ import type {
     WidgetItem
 } from '../types/Widget';
 
+// The model name as the Model widget shows it: no "(1M context)" suffix, first word only with shortName
+export function resolveModelName(item: WidgetItem, context: RenderContext): string | null {
+    const model = context.data?.model;
+    const modelDisplayName = typeof model === 'string'
+        ? model
+        : (model?.display_name ?? model?.id);
+
+    if (!modelDisplayName) {
+        return null;
+    }
+    const stripped = modelDisplayName.replace(/\s*\(.*\)$/, '');
+    return item.metadata?.shortName === 'true' ? (stripped.split(/\s+/)[0] ?? stripped) : stripped;
+}
+
 export class ModelWidget implements Widget {
     getDefaultColor(): string { return 'cyan'; }
     getDescription(): string { return 'Displays the Claude model name (e.g., Claude 3.5 Sonnet)'; }
@@ -23,14 +37,8 @@ export class ModelWidget implements Widget {
             return item.rawValue ? preview : `Model: ${preview}`;
         }
 
-        const model = context.data?.model;
-        const modelDisplayName = typeof model === 'string'
-            ? model
-            : (model?.display_name ?? model?.id);
-
-        if (modelDisplayName) {
-            const stripped = modelDisplayName.replace(/\s*\(.*\)$/, '');
-            const name = firstWordOnly ? (stripped.split(/\s+/)[0] ?? stripped) : stripped;
+        const name = resolveModelName(item, context);
+        if (name) {
             return item.rawValue ? name : `Model: ${name}`;
         }
         return null;
