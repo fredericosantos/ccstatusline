@@ -381,6 +381,46 @@ Each line is sized on its own: the widths of everything that is not a fluid bar 
 
 The width is measured each time ccstatusline renders. Claude Code re-runs the status line when the conversation updates; whether a bare terminal resize re-runs it has not been verified, so the bars may only adjust on the next update. `display: "fluid"` is set in `settings.json` (or `p` cycles away from it); the TUI does not cycle into it.
 
+### Pace bars
+
+`session-pace` (5-hour window) and `weekly-pace` (7-day window) put two measures on one bar: how much of the limit you have **used** and how much of the window has **elapsed**. Ideally they match. Every symbol is coloured by how much of it each measure covers:
+
+| Colour (default) | Meaning |
+| --- | --- |
+| cream `#F4F3EE` | both cover it: usage is on pace with time |
+| orange `#D97757` | only usage covers it: usage is ahead of time (burning too fast) |
+| blue `#6A9BCC` | only time covers it: usage is behind time (slack left) |
+| track gray | neither covers it yet |
+
+A symbol that is only partly covered fades between the colours in proportion, so a bar that is all cream up to the end of the used part is exactly on pace, an orange tail means you are ahead, and a blue tail means you are behind. Time comes from the usage data's reset time (the session window falls back to the transcript's block start, as the time cursor does); without any time information the widget draws the plain usage bar in the normal fill colour.
+
+```json
+{ "id": "1", "type": "session-pace", "metadata": { "display": "fluid", "text": "both" } }
+```
+
+| Setting | Widget `metadata` | Default | Meaning |
+| --- | --- | --- | --- |
+| `progressPaceColors.usage` | `usageColor` | `#D97757` | usage-only colour |
+| `progressPaceColors.time` | `timeColor` | `#6A9BCC` | time-only colour |
+| `progressPaceColors.both` | `bothColor` | `#F4F3EE` | shared colour; `"mix"` uses the average of the usage and time colours |
+| | `text` | `usage` | text after the bar: `usage` (`70.0%`), `both` (`70/40%`), `delta` (`+30`, usage minus elapsed in points) or `none` |
+| | `label` | `5h` / `7d` | short tag before the bar; `""` hides it |
+| | `display` | `progress-xs` | `progress-xs`, `progress-short`, `progress` or `fluid` |
+
+The text is coloured by `progressTextEscalation` from the usage share, like the other consumption bars. Colours accept `#RRGGBB`, `hex:RRGGBB` or a colour name; bad values fall back to the defaults. Pace bars draw with the `dots` or `line` style (and `progressBarSymbol`, `progressBarTrackColor`); a `pill` or `blocks` style falls back to dots, and without colour support (`colorLevel: 0`) the bar degrades to the plain usage bar. Inverting is not supported. The TUI keys are `p` (width), `t` (text) and `b` (bar style). To tell plain bars apart the `context-bar` widget also takes `metadata.label` (for example `"ctx"`); it works best with the raw value, which drops the `Context: ` prefix.
+
+### Model + Effort
+
+The `model-effort` widget shows the model and the thinking effort as one unit: `(Sonnet|high)`. The model name follows the `model` widget (including `shortName`), the effort follows `thinking-effort`: it is left out when unset or `medium`, leaving `(Sonnet)`. The delimiters and separator are dimmed with the bar track colour; the text takes the widget colour.
+
+| Widget `metadata` | Default | Meaning |
+| --- | --- | --- |
+| `open` / `close` | `(` / `)` | delimiters (empty strings remove them) |
+| `separator` | `\|` | between model and effort |
+| `caps` | | `rounded` uses Powerline caps (`\ue0b6` / `\ue0b4`) instead of the delimiters |
+| `showMedium` | | `true` shows `medium` instead of hiding it |
+| `shortName` | | `true` keeps the first word of the model name |
+
 <br />
 
 ## 🌐 Localizations
