@@ -77,6 +77,13 @@ export const SettingsSchema = z.object({
     globalBold: z.boolean().default(false),
     // Look of every progress bar (dots when unset); a widget can override it with metadata.barStyle
     progressBarStyle: BarStyleSchema.optional(),
+    // Bar colours as '#RRGGBB', 'hex:RRGGBB' or a colour name; metadata.fillColor / trackColor override per widget
+    progressBarFillColor: z.string().optional(),
+    progressBarTrackColor: z.string().optional(),
+    // Symbol of the dots style (one character); metadata.symbol overrides per widget
+    progressBarSymbol: z.string().optional(),
+    // Turn consumption bars amber / red near the limit; metadata.escalate overrides per widget
+    progressBarEscalate: z.boolean().optional(),
     numberFormat: GlobalNumberFormatSchema.optional(),
     gitCacheTtlSeconds: z.number().min(0).max(60).default(5),
     // How long a "no TTY" result is reused for the same session, in seconds.

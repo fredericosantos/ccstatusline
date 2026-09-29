@@ -128,6 +128,19 @@ export function getChalkColor(colorName: string | undefined, colorLevel: 'ansi16
     }
 }
 
+// RGB of a named colour as '#rrggbb'. chalk only emits 24-bit codes at level 3, so lift the level for one call.
+export function getColorHex(name: string): string | undefined {
+    const entry = COLOR_MAP.find(c => c.name === name && !c.isBackground);
+    if (!entry) {
+        return undefined;
+    }
+    const level = chalk.level;
+    chalk.level = 3;
+    const rgb = /38;2;(\d+);(\d+);(\d+)/.exec(entry.truecolor('x'));
+    chalk.level = level;
+    return rgb ? '#' + rgb.slice(1).map(n => Number(n).toString(16).padStart(2, '0')).join('') : undefined;
+}
+
 // Dim each (...) span within the text. \x1b[22m clears bold along with dim,
 // so bold is re-asserted after each span when the surrounding text is bold.
 export function applyParensDim(text: string, bold?: boolean): string {

@@ -23,8 +23,8 @@ import {
     toggleMetadataFlag
 } from './shared/metadata';
 import {
-    makeStyledBar,
-    resolveBarStyle
+    barOptionsFor,
+    makeStyledBar
 } from './shared/progress-bar';
 import {
     cycleBarStyle,
@@ -120,12 +120,11 @@ export class ContextBarWidget implements Widget {
 
     // The xs bar is bracket-less; percent and used/total are opt-in via showPercent / showUsage
     private makeBar(item: WidgetItem, settings: Settings, percent: number, width: number): string {
-        const style = resolveBarStyle(item, settings);
-        const escalatePercent = item.metadata?.escalate === 'false' ? undefined : percent;
+        const options = barOptionsFor(item, settings, percent);
         // Brackets only frame the blocks style on the longer bars
-        return style === 'blocks' && width > 5
+        return options.style === 'blocks' && width > 5
             ? makeUsageProgressBar(percent, width)
-            : makeStyledBar(percent, width, { style, escalatePercent });
+            : makeStyledBar(percent, width, options);
     }
 
     private renderXs(item: WidgetItem, settings: Settings, percent: number, usageText: string): string {

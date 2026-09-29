@@ -307,26 +307,42 @@
 
 <br />
 
-## 🟠 Progress Bar Styles
+## ⚪ Progress Bar Styles
 
-Progress-bar widgets (session / weekly / extra usage, block timer, block and weekly reset, context bar) draw their bars in one of four styles, in the Claude palette (orange fill on a warm-gray track):
+Progress-bar widgets (session / weekly / extra usage, block timer, block and weekly reset, context bar) draw their bars in one of four styles. The default look is minimal: a white fill over a faint gray track, with no backgrounds.
 
 | Style | Look | Notes |
 | --- | --- | --- |
-| `dots` (default) | `●●●●●` | filled dots plus one dot blended between track and fill |
-| `pill` | rounded caps, fill advancing in eighths of a cell | needs a Powerline / Nerd Font for the caps (2 extra cells) |
-| `line` | `━━╸━━` | rich-style heavy line with a half-cell edge |
+| `dots` (default) | `●●●●●` | one symbol per slice of the range; the boundary symbol fades from track to fill colour |
+| `pill` | rounded caps, fill advancing in eighths of a cell | needs a Powerline / Nerd Font for the caps (2 extra cells); no track, so an empty pill is blank |
+| `line` | `━━━━━` | like `dots`, with `━` cells |
 | `blocks` | `█░` | the classic bar; keeps its `[ ]` brackets on the long and medium bars |
 
-Set the style for every bar in `~/.config/ccstatusline/settings.json`:
+**Progressive fill.** With `n` symbols each one covers `100/n` percent. Symbols before the boundary use the fill colour, symbols after it use the track colour, and the boundary symbol is blended by how much of its own slice is covered (plain alpha compositing in sRGB): at 35% of 5 dots, dot 1 is full and dot 2 is 75% of the way from track to fill.
+
+All options live in `~/.config/ccstatusline/settings.json`; a widget can override each one with the matching `metadata` key.
+
+| Setting | Widget `metadata` | Default | Meaning |
+| --- | --- | --- | --- |
+| `progressBarStyle` | `barStyle` | `dots` | `dots`, `pill`, `line` or `blocks` |
+| `progressBarFillColor` | `fillColor` | `#FFFFFF` | `#RRGGBB`, `hex:RRGGBB` or a colour name such as `red` |
+| `progressBarTrackColor` | `trackColor` | `#4D4D4D` | same formats |
+| `progressBarSymbol` | `symbol` | `●` | one character for `dots`, e.g. `■`, `◆`, `★` |
+| `progressBarEscalate` | `escalate` (`"true"` / `"false"`) | `false` | consumption bars turn amber at 75% used and red at 90% |
+
+Invalid values fall back to the next level (widget → global → default) without an error. Timers never escalate. Press `b` in the widget editor to cycle a widget's style (widget override → dots → pill → line → blocks → back to the global style). With `colorLevel: 0` every bar falls back to `blocks`; hex colours are downgraded to the configured colour level, so `colorLevel: 3` renders them exactly.
+
+An orange (Claude) look:
 
 ```json
-{ "progressBarStyle": "pill" }
+{
+  "colorLevel": 3,
+  "progressBarStyle": "dots",
+  "progressBarFillColor": "#D97757",
+  "progressBarTrackColor": "#3B3936",
+  "progressBarEscalate": true
+}
 ```
-
-Override it for one widget with `"metadata": { "barStyle": "line" }`, or press `b` in the widget editor to cycle it (widget override → dots → pill → line → blocks → back to the global style).
-
-Consumption widgets (session, weekly and extra usage, context bar) turn amber at 75% used and red at 90%. Timers keep the plain fill colour. Set `"metadata": { "escalate": "false" }` on a widget to turn escalation off. With `colorLevel: 0` every bar falls back to `blocks`. Hex colours are downgraded to the configured colour level, so `colorLevel: 3` renders the palette exactly.
 
 <br />
 

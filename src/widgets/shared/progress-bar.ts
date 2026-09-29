@@ -4,6 +4,7 @@ import type { BarStyle } from '../../types/BarStyle';
 import { BAR_STYLES } from '../../types/BarStyle';
 import type { Settings } from '../../types/Settings';
 import type { WidgetItem } from '../../types/Widget';
+import { getColorHex } from '../../utils/colors';
 
 import {
     formatUsageProgress,
@@ -40,34 +41,46 @@ export function makeTimerProgressBar(
     return bar;
 }
 
-// Claude palette. Bars carry their own colours; the widget's configured colour
-// still styles the percent text around them.
+// Minimal defaults: white fill over a faint track. Bars carry their own colours; the
+// widget's configured colour still styles the percent text around them.
 export const BAR_COLORS = {
-    fill: '#D97757',
+    fill: '#FFFFFF',
+    track: '#4D4D4D',
     warn: '#E5B454',
     danger: '#D4574A',
-    track: '#3B3936',
     cursor: '#F4F3EE'
 } as const;
 
+const DEFAULT_SYMBOL = '●';
 const WARN_AT = 75;
 const DANGER_AT = 90;
 const EIGHTHS = ' ▏▎▍▌▋▊▉█';
 const FG_OFF = '\x1b[39m';
-const BG_OFF = '\x1b[49m';
 
 // chalk downgrades the hex to the active colour level, so the open code is derived
 // from it instead of hand-building truecolor / 256-colour sequences
-function open(hex: string, background = false): string {
-    const styled = (background ? chalk.bgHex(hex) : chalk.hex(hex))('x');
+function open(hex: string): string {
+    const styled = chalk.hex(hex)('x');
     return styled.slice(0, styled.indexOf('x'));
 }
 
+// Plain alpha compositing in sRGB, so "35% of the way to the fill" is literally 35% opacity
 function blend(from: string, to: string, ratio: number): string {
     const channel = (hex: string, at: number): number => parseInt(hex.slice(at, at + 2), 16);
     return '#' + [1, 3, 5]
         .map(at => Math.round(channel(from, at) + (channel(to, at) - channel(from, at)) * ratio).toString(16).padStart(2, '0'))
         .join('');
+}
+
+// '#RRGGBB', 'hex:RRGGBB' or one of the project's colour names; anything else falls back
+export function resolveBarColor(value: string | undefined, fallback: string): string {
+    const hex = value ? /^(?:#|hex:)([0-9a-f]{6})$/i.exec(value)?.[1] : undefined;
+    return hex ? `#${hex}` : (value ? getColorHex(value) : undefined) ?? fallback;
+}
+
+// One code point only; combining sequences are rejected (ponytail: use Intl.Segmenter if those are ever wanted)
+export function resolveBarSymbol(value: string | undefined, fallback = DEFAULT_SYMBOL): string {
+    return value !== undefined && Array.from(value).length === 1 ? value : fallback;
 }
 
 export function resolveBarStyle(item: WidgetItem, settings: Settings): BarStyle {
@@ -79,18 +92,36 @@ export function resolveBarStyle(item: WidgetItem, settings: Settings): BarStyle 
     return BAR_STYLES.find(style => style === override) ?? settings.progressBarStyle ?? 'dots';
 }
 
-export function getBarFillColor(usedPercent?: number): string {
+export function getBarFillColor(usedPercent?: number, base: string = BAR_COLORS.fill): string {
     if (usedPercent === undefined) {
-        return BAR_COLORS.fill;
+        return base;
     }
-    return usedPercent >= DANGER_AT ? BAR_COLORS.danger : usedPercent >= WARN_AT ? BAR_COLORS.warn : BAR_COLORS.fill;
+    return usedPercent >= DANGER_AT ? BAR_COLORS.danger : usedPercent >= WARN_AT ? BAR_COLORS.warn : base;
 }
 
 interface StyledBarOptions {
     style: BarStyle;
+    fill?: string;
+    track?: string;
+    // Symbol drawn by the dots style
+    symbol?: string;
     // Percentage that drives the warn / danger colours; leave undefined for the plain fill colour
     escalatePercent?: number;
     cursorPercent?: number;
+}
+
+// Everything a widget needs to draw its bar: metadata wins over the global settings, then the defaults.
+// consumedPercent is passed only by widgets that fill up with use, and only escalates when it is enabled.
+export function barOptionsFor(item: WidgetItem, settings: Settings, consumedPercent?: number): StyledBarOptions {
+    const meta = item.metadata;
+    const escalate = meta?.escalate === 'true' || (meta?.escalate !== 'false' && settings.progressBarEscalate === true);
+    return {
+        style: resolveBarStyle(item, settings),
+        fill: resolveBarColor(meta?.fillColor, resolveBarColor(settings.progressBarFillColor, BAR_COLORS.fill)),
+        track: resolveBarColor(meta?.trackColor, resolveBarColor(settings.progressBarTrackColor, BAR_COLORS.track)),
+        symbol: resolveBarSymbol(meta?.symbol, resolveBarSymbol(settings.progressBarSymbol)),
+        escalatePercent: escalate ? consumedPercent : undefined
+    };
 }
 
 export function makeStyledBar(percent: number, width: number, options: StyledBarOptions): string {
@@ -99,54 +130,39 @@ export function makeStyledBar(percent: number, width: number, options: StyledBar
     }
 
     const clamped = Math.max(0, Math.min(100, percent));
-    const fill = getBarFillColor(options.escalatePercent);
+    const track = options.track ?? BAR_COLORS.track;
+    const fill = getBarFillColor(options.escalatePercent, options.fill);
     const cursorPos = options.cursorPercent === undefined
         ? -1
         : Math.min(Math.floor((Math.max(0, Math.min(100, options.cursorPercent)) / 100) * width), width - 1);
-    const cursor = (background: boolean): string => `${open(BAR_COLORS.cursor)}${background ? open(BAR_COLORS.track, true) : ''}│`;
-    const cells = (paint: (i: number) => string): string => Array.from({ length: width }, (_, i) => i === cursorPos ? cursor(options.style === 'pill') : paint(i)).join('');
+    const cells = (paint: (i: number) => string): string => Array.from({ length: width }, (_, i) => i === cursorPos ? `${open(BAR_COLORS.cursor)}│` : paint(i)).join('');
 
-    if (options.style === 'dots') {
-        const at = (clamped / 100) * width;
-        return cells((i) => {
-            const color = i + 1 <= at ? fill : i < at ? blend(BAR_COLORS.track, fill, at - i) : BAR_COLORS.track;
-            return `${open(color)}●`;
-        }) + FG_OFF;
+    if (options.style === 'pill') {
+        // Rounded Powerline caps around foreground-only cells that fill in eighths; no track at all,
+        // so an empty pill is blank. The width stays constant: the cap slots hold a space until drawn.
+        const eighths = Math.round((clamped / 100) * width * 8);
+        const full = Math.floor(eighths / 8);
+        const cap = (glyph: string, on: boolean): string => on ? `${open(fill)}${glyph}${FG_OFF}` : ' ';
+        const body = cells(i => i < full
+            ? `${open(fill)}█`
+            : i === full && eighths % 8 > 0 ? `${open(fill)}${EIGHTHS.charAt(eighths % 8)}` : ' ');
+
+        return `${cap('\ue0b6', eighths > 0)}${body}${eighths > 0 ? FG_OFF : ''}${cap('\ue0b4', eighths >= width * 8)}`;
     }
 
-    if (options.style === 'line') {
-        const halves = Math.round((clamped / 100) * width * 2);
-        const full = Math.floor(halves / 2);
-        return cells((i) => {
-            if (i < full) {
-                return `${open(fill)}━`;
-            }
-            if (i === full) {
-                return halves % 2 === 1 ? `${open(fill)}╸` : `${open(BAR_COLORS.track)}╺`;
-            }
-            return `${open(BAR_COLORS.track)}━`;
-        }) + FG_OFF;
-    }
-
-    // pill: rounded Powerline caps around cells that fill in eighths
-    const eighths = Math.round((clamped / 100) * width * 8);
-    const full = Math.floor(eighths / 8);
-    const body = cells((i) => {
-        if (i < full) {
-            return `${open(fill, true)} `;
-        }
-        return i === full && eighths % 8 > 0
-            ? `${open(fill)}${open(BAR_COLORS.track, true)}${EIGHTHS.charAt(eighths % 8)}`
-            : `${open(BAR_COLORS.track, true)} `;
-    });
-    const leftCap = `${open(eighths > 0 ? fill : BAR_COLORS.track)}${FG_OFF}`;
-    const rightCap = `${open(eighths >= width * 8 ? fill : BAR_COLORS.track)}${FG_OFF}`;
-
-    return `${leftCap}${body}${BG_OFF}${rightCap}`;
+    // dots / line: each symbol owns an equal slice of the range. Symbols before the boundary are fully
+    // filled, the boundary symbol fades from track to fill by how much of its own slice is covered.
+    const symbol = options.style === 'line' ? '━' : options.symbol ?? DEFAULT_SYMBOL;
+    const at = (clamped * width) / 100;
+    const eps = 1e-9;
+    return cells((i) => {
+        const color = i + 1 <= at + eps ? fill : i < at - eps ? blend(track, fill, at - i) : track;
+        return `${open(color)}${symbol}`;
+    }) + FG_OFF;
 }
 
 interface UsageBarOptions {
-    // Consumption widgets turn amber / red as they fill; timers keep the plain fill colour
+    // Consumption widgets fill up with use and may turn amber / red (opt-in); timers never do
     escalate?: boolean;
     cursor?: TimerProgressBarOptions;
 }
@@ -160,13 +176,9 @@ export function renderUsageBar(
     percentText: string,
     options: UsageBarOptions = {}
 ): string {
-    const style = resolveBarStyle(item, settings);
-    const escalate = options.escalate === true && item.metadata?.escalate !== 'false';
-    const bar = makeStyledBar(percent, getUsageProgressBarWidth(mode), {
-        style,
-        escalatePercent: escalate ? (isUsageInverted(item) ? 100 - percent : percent) : undefined,
-        cursorPercent: options.cursor?.cursorPercent
-    });
+    const consumed = options.escalate === true ? (isUsageInverted(item) ? 100 - percent : percent) : undefined;
+    const barOptions = barOptionsFor(item, settings, consumed);
+    const bar = makeStyledBar(percent, getUsageProgressBarWidth(mode), { ...barOptions, cursorPercent: options.cursor?.cursorPercent });
 
-    return formatUsageProgress(item, mode, bar, percentText, style);
+    return formatUsageProgress(item, mode, bar, percentText, barOptions.style);
 }
