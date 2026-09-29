@@ -15265,6 +15265,17 @@ function getChalkColor(colorName, colorLevel = "ansi16", isBackground = false) {
       return colorEntry.ansi16;
   }
 }
+function getColorHex(name) {
+  const entry = COLOR_MAP.find((c) => c.name === name && !c.isBackground);
+  if (!entry) {
+    return;
+  }
+  const level = source_default.level;
+  source_default.level = 3;
+  const rgb = /38;2;(\d+);(\d+);(\d+)/.exec(entry.truecolor("x"));
+  source_default.level = level;
+  return rgb ? "#" + rgb.slice(1).map((n) => Number(n).toString(16).padStart(2, "0")).join("") : undefined;
+}
 function applyParensDim(text, bold) {
   const intensityReset = bold ? "\x1B[22;1m" : "\x1B[22m";
   return text.replace(/\([^()]*\)/g, (span) => `\x1B[2m${span}${intensityReset}`);
@@ -33688,6 +33699,10 @@ var SettingsSchema = object({
   overrideForegroundColor: string().optional(),
   globalBold: boolean2().default(false),
   progressBarStyle: BarStyleSchema.optional(),
+  progressBarFillColor: string().optional(),
+  progressBarTrackColor: string().optional(),
+  progressBarSymbol: string().optional(),
+  progressBarEscalate: boolean2().optional(),
   numberFormat: GlobalNumberFormatSchema.optional(),
   gitCacheTtlSeconds: number().min(0).max(60).default(5),
   terminalWidthCacheTtlSeconds: number().min(0).max(300).default(5),
@@ -34160,7 +34175,7 @@ async function saveSettings(settings) {
   };
   await writeSettingsJson(settingsWithVersion, paths);
   try {
-    const { syncWidgetHooks } = await import("./hooks-bve6n0zy.js");
+    const { syncWidgetHooks } = await import("./hooks-zqvc93d7.js");
     await syncWidgetHooks(settings);
   } catch {}
 }
@@ -34533,7 +34548,7 @@ async function installStatusLine({
   }
   const savedSettings = await loadSavedSettingsForHookSync();
   if (savedSettings) {
-    const { syncWidgetHooks } = await import("./hooks-bve6n0zy.js");
+    const { syncWidgetHooks } = await import("./hooks-zqvc93d7.js");
     await syncWidgetHooks(savedSettings);
   }
 }
@@ -34551,7 +34566,7 @@ async function uninstallStatusLine() {
   }
   await saveInstallationMetadata(undefined);
   try {
-    const { removeManagedHooks } = await import("./hooks-bve6n0zy.js");
+    const { removeManagedHooks } = await import("./hooks-zqvc93d7.js");
     await removeManagedHooks();
   } catch {}
 }
@@ -37348,24 +37363,31 @@ function makeTimerProgressBar(percent, width, options) {
   return bar;
 }
 var BAR_COLORS = {
-  fill: "#D97757",
+  fill: "#FFFFFF",
+  track: "#4D4D4D",
   warn: "#E5B454",
   danger: "#D4574A",
-  track: "#3B3936",
   cursor: "#F4F3EE"
 };
+var DEFAULT_SYMBOL6 = "●";
 var WARN_AT = 75;
 var DANGER_AT = 90;
 var EIGHTHS = " ▏▎▍▌▋▊▉█";
 var FG_OFF = "\x1B[39m";
-var BG_OFF = "\x1B[49m";
-function open2(hex, background = false) {
-  const styled = (background ? source_default.bgHex(hex) : source_default.hex(hex))("x");
+function open2(hex) {
+  const styled = source_default.hex(hex)("x");
   return styled.slice(0, styled.indexOf("x"));
 }
 function blend(from, to, ratio) {
   const channel = (hex, at) => parseInt(hex.slice(at, at + 2), 16);
   return "#" + [1, 3, 5].map((at) => Math.round(channel(from, at) + (channel(to, at) - channel(from, at)) * ratio).toString(16).padStart(2, "0")).join("");
+}
+function resolveBarColor(value, fallback) {
+  const hex = value ? /^(?:#|hex:)([0-9a-f]{6})$/i.exec(value)?.[1] : undefined;
+  return hex ? `#${hex}` : (value ? getColorHex(value) : undefined) ?? fallback;
+}
+function resolveBarSymbol(value, fallback = DEFAULT_SYMBOL6) {
+  return value !== undefined && Array.from(value).length === 1 ? value : fallback;
 }
 function resolveBarStyle(item, settings) {
   if (source_default.level === 0) {
@@ -37374,62 +37396,52 @@ function resolveBarStyle(item, settings) {
   const override = item.metadata?.barStyle;
   return BAR_STYLES.find((style) => style === override) ?? settings.progressBarStyle ?? "dots";
 }
-function getBarFillColor(usedPercent) {
+function getBarFillColor(usedPercent, base = BAR_COLORS.fill) {
   if (usedPercent === undefined) {
-    return BAR_COLORS.fill;
+    return base;
   }
-  return usedPercent >= DANGER_AT ? BAR_COLORS.danger : usedPercent >= WARN_AT ? BAR_COLORS.warn : BAR_COLORS.fill;
+  return usedPercent >= DANGER_AT ? BAR_COLORS.danger : usedPercent >= WARN_AT ? BAR_COLORS.warn : base;
+}
+function barOptionsFor(item, settings, consumedPercent) {
+  const meta = item.metadata;
+  const escalate = meta?.escalate === "true" || meta?.escalate !== "false" && settings.progressBarEscalate === true;
+  return {
+    style: resolveBarStyle(item, settings),
+    fill: resolveBarColor(meta?.fillColor, resolveBarColor(settings.progressBarFillColor, BAR_COLORS.fill)),
+    track: resolveBarColor(meta?.trackColor, resolveBarColor(settings.progressBarTrackColor, BAR_COLORS.track)),
+    symbol: resolveBarSymbol(meta?.symbol, resolveBarSymbol(settings.progressBarSymbol)),
+    escalatePercent: escalate ? consumedPercent : undefined
+  };
 }
 function makeStyledBar(percent, width, options) {
   if (options.style === "blocks") {
     return makeTimerProgressBar(percent, width, options);
   }
   const clamped = Math.max(0, Math.min(100, percent));
-  const fill = getBarFillColor(options.escalatePercent);
+  const track = options.track ?? BAR_COLORS.track;
+  const fill = getBarFillColor(options.escalatePercent, options.fill);
   const cursorPos = options.cursorPercent === undefined ? -1 : Math.min(Math.floor(Math.max(0, Math.min(100, options.cursorPercent)) / 100 * width), width - 1);
-  const cursor = (background) => `${open2(BAR_COLORS.cursor)}${background ? open2(BAR_COLORS.track, true) : ""}│`;
-  const cells = (paint) => Array.from({ length: width }, (_, i) => i === cursorPos ? cursor(options.style === "pill") : paint(i)).join("");
-  if (options.style === "dots") {
-    const at = clamped / 100 * width;
-    return cells((i) => {
-      const color = i + 1 <= at ? fill : i < at ? blend(BAR_COLORS.track, fill, at - i) : BAR_COLORS.track;
-      return `${open2(color)}●`;
-    }) + FG_OFF;
+  const cells = (paint) => Array.from({ length: width }, (_, i) => i === cursorPos ? `${open2(BAR_COLORS.cursor)}│` : paint(i)).join("");
+  if (options.style === "pill") {
+    const eighths = Math.round(clamped / 100 * width * 8);
+    const full = Math.floor(eighths / 8);
+    const cap = (glyph, on) => on ? `${open2(fill)}${glyph}${FG_OFF}` : " ";
+    const body = cells((i) => i < full ? `${open2(fill)}█` : i === full && eighths % 8 > 0 ? `${open2(fill)}${EIGHTHS.charAt(eighths % 8)}` : " ");
+    return `${cap("", eighths > 0)}${body}${eighths > 0 ? FG_OFF : ""}${cap("", eighths >= width * 8)}`;
   }
-  if (options.style === "line") {
-    const halves = Math.round(clamped / 100 * width * 2);
-    const full = Math.floor(halves / 2);
-    return cells((i) => {
-      if (i < full) {
-        return `${open2(fill)}━`;
-      }
-      if (i === full) {
-        return halves % 2 === 1 ? `${open2(fill)}╸` : `${open2(BAR_COLORS.track)}╺`;
-      }
-      return `${open2(BAR_COLORS.track)}━`;
-    }) + FG_OFF;
-  }
-  const eighths = Math.round(clamped / 100 * width * 8);
-  const full = Math.floor(eighths / 8);
-  const body = cells((i) => {
-    if (i < full) {
-      return `${open2(fill, true)} `;
-    }
-    return i === full && eighths % 8 > 0 ? `${open2(fill)}${open2(BAR_COLORS.track, true)}${EIGHTHS.charAt(eighths % 8)}` : `${open2(BAR_COLORS.track, true)} `;
-  });
-  const leftCap = `${open2(eighths > 0 ? fill : BAR_COLORS.track)}${FG_OFF}`;
-  const rightCap = `${open2(eighths >= width * 8 ? fill : BAR_COLORS.track)}${FG_OFF}`;
-  return `${leftCap}${body}${BG_OFF}${rightCap}`;
+  const symbol = options.style === "line" ? "━" : options.symbol ?? DEFAULT_SYMBOL6;
+  const at = clamped * width / 100;
+  const eps = 0.000000001;
+  return cells((i) => {
+    const color = i + 1 <= at + eps ? fill : i < at - eps ? blend(track, fill, at - i) : track;
+    return `${open2(color)}${symbol}`;
+  }) + FG_OFF;
 }
 function renderUsageBar(item, settings, mode, percent, percentText, options = {}) {
-  const style = resolveBarStyle(item, settings);
-  const escalate = options.escalate === true && item.metadata?.escalate !== "false";
-  const bar = makeStyledBar(percent, getUsageProgressBarWidth(mode), {
-    style,
-    escalatePercent: escalate ? isUsageInverted(item) ? 100 - percent : percent : undefined,
-    cursorPercent: options.cursor?.cursorPercent
-  });
-  return formatUsageProgress(item, mode, bar, percentText, style);
+  const consumed = options.escalate === true ? isUsageInverted(item) ? 100 - percent : percent : undefined;
+  const barOptions = barOptionsFor(item, settings, consumed);
+  const bar = makeStyledBar(percent, getUsageProgressBarWidth(mode), { ...barOptions, cursorPercent: options.cursor?.cursorPercent });
+  return formatUsageProgress(item, mode, bar, percentText, barOptions.style);
 }
 
 // src/widgets/BlockTimer.ts
@@ -37964,7 +37976,7 @@ function getJjChangeCounts(context) {
 }
 
 // src/widgets/JjBookmarks.ts
-var DEFAULT_SYMBOL6 = "\uD83D\uDD16";
+var DEFAULT_SYMBOL7 = "\uD83D\uDD16";
 
 class JjBookmarksWidget {
   getDefaultColor() {
@@ -37987,7 +37999,7 @@ class JjBookmarksWidget {
   }
   render(item, context, _settings) {
     const hideNoJj = isHidden(item, NO_JJ_HIDEABLE_STATE.key);
-    const prefix = formatSymbolPrefix(item, DEFAULT_SYMBOL6);
+    const prefix = formatSymbolPrefix(item, DEFAULT_SYMBOL7);
     if (context.isPreview) {
       return item.rawValue ? "main" : `${prefix}main`;
     }
@@ -38022,7 +38034,7 @@ class JjBookmarksWidget {
     return [getSymbolKeybind()];
   }
   renderEditor(props) {
-    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL6);
+    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL7);
   }
   supportsRawValue() {
     return true;
@@ -38034,7 +38046,7 @@ class JjBookmarksWidget {
 // src/widgets/JjWorkspace.ts
 var CURRENT_WORKSPACE_TEMPLATE = `if(target.current_working_copy(), name ++ "
 ")`;
-var DEFAULT_SYMBOL7 = "◆";
+var DEFAULT_SYMBOL8 = "◆";
 
 class JjWorkspaceWidget {
   getDefaultColor() {
@@ -38057,7 +38069,7 @@ class JjWorkspaceWidget {
   }
   render(item, context, _settings) {
     const hideNoJj = isHidden(item, NO_JJ_HIDEABLE_STATE.key);
-    const prefix = formatSymbolPrefix(item, DEFAULT_SYMBOL7);
+    const prefix = formatSymbolPrefix(item, DEFAULT_SYMBOL8);
     if (context.isPreview) {
       return item.rawValue ? "default" : `${prefix}default`;
     }
@@ -38086,7 +38098,7 @@ class JjWorkspaceWidget {
     return [getSymbolKeybind()];
   }
   renderEditor(props) {
-    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL7);
+    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL8);
   }
   supportsRawValue() {
     return true;
@@ -38351,7 +38363,7 @@ class JjDescriptionWidget {
   }
 }
 // src/widgets/JjRevision.ts
-var DEFAULT_SYMBOL8 = "";
+var DEFAULT_SYMBOL9 = "";
 
 class JjRevisionWidget {
   getDefaultColor() {
@@ -38374,7 +38386,7 @@ class JjRevisionWidget {
   }
   render(item, context, _settings) {
     const hideNoJj = isHidden(item, NO_JJ_HIDEABLE_STATE.key);
-    const prefix = formatSymbolPrefix(item, DEFAULT_SYMBOL8);
+    const prefix = formatSymbolPrefix(item, DEFAULT_SYMBOL9);
     if (context.isPreview) {
       return item.rawValue ? "kkmpptxz" : `${prefix}kkmpptxz`;
     }
@@ -38401,7 +38413,7 @@ class JjRevisionWidget {
     return [getSymbolKeybind()];
   }
   renderEditor(props) {
-    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL8);
+    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL9);
   }
   supportsRawValue() {
     return true;
@@ -40295,9 +40307,8 @@ class ContextBarWidget {
     };
   }
   makeBar(item, settings, percent, width) {
-    const style = resolveBarStyle(item, settings);
-    const escalatePercent = item.metadata?.escalate === "false" ? undefined : percent;
-    return style === "blocks" && width > 5 ? makeUsageProgressBar(percent, width) : makeStyledBar(percent, width, { style, escalatePercent });
+    const options = barOptionsFor(item, settings, percent);
+    return options.style === "blocks" && width > 5 ? makeUsageProgressBar(percent, width) : makeStyledBar(percent, width, options);
   }
   renderXs(item, settings, percent, usageText) {
     const parts = [this.makeBar(item, settings, percent, 5)];
@@ -40923,7 +40934,7 @@ class VimModeWidget {
   }
 }
 // src/widgets/GitWorktreeMode.ts
-var DEFAULT_SYMBOL9 = "⎇";
+var DEFAULT_SYMBOL10 = "⎇";
 
 class GitWorktreeModeWidget {
   getDefaultColor() {
@@ -40950,14 +40961,14 @@ class GitWorktreeModeWidget {
     if (!isInWorktree) {
       return null;
     }
-    const symbol = getSymbol(item, DEFAULT_SYMBOL9);
+    const symbol = getSymbol(item, DEFAULT_SYMBOL10);
     return symbol.length > 0 ? symbol : null;
   }
   getCustomKeybinds() {
     return [getSymbolKeybind()];
   }
   renderEditor(props) {
-    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL9);
+    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL10);
   }
   supportsRawValue() {
     return true;
