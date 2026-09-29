@@ -23411,210 +23411,9 @@ function getHideModifierText(item, states) {
   return enabled.length > 0 ? `(hide: ${enabled.join(", ")})` : undefined;
 }
 
-// src/utils/context-window.ts
-function toFiniteNonNegativeNumber(value) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return null;
-  }
-  return Math.max(0, value);
-}
-function parseUsageTokens(usage) {
-  return {
-    input: toFiniteNonNegativeNumber(usage.input_tokens) ?? 0,
-    output: toFiniteNonNegativeNumber(usage.output_tokens) ?? 0,
-    creation: toFiniteNonNegativeNumber(usage.cache_creation_input_tokens) ?? 0,
-    read: toFiniteNonNegativeNumber(usage.cache_read_input_tokens) ?? 0
-  };
-}
-function contextLengthFromUsageTokens(tokens) {
-  return tokens.input + tokens.creation + tokens.read;
-}
-function clampPercentage(value) {
-  return Math.max(0, Math.min(100, value));
-}
-function getContextWindowMetrics(data) {
-  const contextWindow = data?.context_window;
-  if (!contextWindow) {
-    return {
-      windowSize: null,
-      usedTokens: null,
-      contextLengthTokens: null,
-      usedPercentage: null,
-      remainingPercentage: null,
-      totalInputTokens: null,
-      totalOutputTokens: null,
-      cachedTokens: null,
-      totalTokens: null
-    };
-  }
-  const rawWindowSize = toFiniteNonNegativeNumber(contextWindow.context_window_size);
-  const windowSize = rawWindowSize !== null && rawWindowSize > 0 ? rawWindowSize : null;
-  const totalInputTokens = toFiniteNonNegativeNumber(contextWindow.total_input_tokens);
-  const totalOutputTokens = toFiniteNonNegativeNumber(contextWindow.total_output_tokens);
-  let currentUsageTotalTokens = null;
-  let contextLengthTokens = null;
-  let cachedTokens = null;
-  if (typeof contextWindow.current_usage === "number") {
-    currentUsageTotalTokens = toFiniteNonNegativeNumber(contextWindow.current_usage);
-    contextLengthTokens = currentUsageTotalTokens;
-  } else if (contextWindow.current_usage && typeof contextWindow.current_usage === "object") {
-    const usageTokens = parseUsageTokens(contextWindow.current_usage);
-    const { input, output, creation, read } = usageTokens;
-    currentUsageTotalTokens = input + output + creation + read;
-    contextLengthTokens = contextLengthFromUsageTokens(usageTokens);
-    cachedTokens = creation + read;
-  }
-  const rawUsedPercentage = toFiniteNonNegativeNumber(contextWindow.used_percentage);
-  const rawRemainingPercentage = toFiniteNonNegativeNumber(contextWindow.remaining_percentage);
-  const usedTokensFromPercentage = rawUsedPercentage !== null && windowSize !== null ? rawUsedPercentage / 100 * windowSize : null;
-  const usedTokens = currentUsageTotalTokens ?? usedTokensFromPercentage;
-  const usedPercentage = rawUsedPercentage !== null ? clampPercentage(rawUsedPercentage) : usedTokens !== null && windowSize !== null && windowSize > 0 ? clampPercentage(usedTokens / windowSize * 100) : null;
-  const remainingPercentage = rawRemainingPercentage !== null ? clampPercentage(rawRemainingPercentage) : usedPercentage !== null ? 100 - usedPercentage : null;
-  const totalTokens = currentUsageTotalTokens ?? (totalInputTokens !== null && totalOutputTokens !== null ? totalInputTokens + totalOutputTokens : null);
-  return {
-    windowSize,
-    usedTokens,
-    contextLengthTokens: contextLengthTokens ?? usedTokens,
-    usedPercentage,
-    remainingPercentage,
-    totalInputTokens,
-    totalOutputTokens,
-    cachedTokens,
-    totalTokens
-  };
-}
-function getContextWindowInputTotalTokens(data) {
-  return getContextWindowMetrics(data).totalInputTokens;
-}
-function getContextWindowOutputTotalTokens(data) {
-  return getContextWindowMetrics(data).totalOutputTokens;
-}
-function getContextWindowContextLengthTokens(data) {
-  return getContextWindowMetrics(data).contextLengthTokens;
-}
-function getContextWindowSize(data) {
-  return getContextWindowMetrics(data).windowSize;
-}
-function getContextWindowTurnCacheTokens(data) {
-  const usage = data?.context_window?.current_usage;
-  if (!usage || typeof usage !== "object") {
-    return null;
-  }
-  const { input, creation, read } = parseUsageTokens(usage);
-  return { read, creation, input };
-}
-
-// src/utils/model-context.ts
-var DEFAULT_CONTEXT_WINDOW_SIZE = 200000;
-var USABLE_CONTEXT_RATIO = 0.8;
-var CONTEXT_SIZE_FALLBACK_ENV_VAR = "CCSTATUSLINE_CONTEXT_SIZE_FALLBACK";
-function getFallbackContextWindowSize() {
-  const raw = process.env[CONTEXT_SIZE_FALLBACK_ENV_VAR];
-  if (raw) {
-    const parsed = Number.parseInt(raw, 10);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      return parsed;
-    }
-  }
-  return DEFAULT_CONTEXT_WINDOW_SIZE;
-}
-function toValidWindowSize(value) {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
-    return null;
-  }
-  return value;
-}
-function parseContextWindowSize(modelIdentifier) {
-  const delimitedMatch = /(?:\(|\[)\s*(\d+(?:[,_]\d+)*(?:\.\d+)?)\s*([km])\s*(?:\)|\])/i.exec(modelIdentifier);
-  if (delimitedMatch) {
-    const delimitedValue = delimitedMatch[1];
-    const delimitedUnit = delimitedMatch[2];
-    if (!delimitedValue || !delimitedUnit) {
-      return null;
-    }
-    const parsed = Number.parseFloat(delimitedValue.replace(/[,_]/g, ""));
-    if (Number.isFinite(parsed) && parsed > 0) {
-      return Math.round(parsed * (delimitedUnit.toLowerCase() === "m" ? 1e6 : 1000));
-    }
-  }
-  const contextMatch = /\b(\d+(?:[,_]\d+)*(?:\.\d+)?)\s*([km])(?:\s*(?:token\s*)?context)?\b/i.exec(modelIdentifier);
-  if (!contextMatch) {
-    return null;
-  }
-  const contextValue = contextMatch[1];
-  const contextUnit = contextMatch[2];
-  if (!contextValue || !contextUnit) {
-    return null;
-  }
-  const parsed = Number.parseFloat(contextValue.replace(/[,_]/g, ""));
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return null;
-  }
-  return Math.round(parsed * (contextUnit.toLowerCase() === "m" ? 1e6 : 1000));
-}
-function getModelContextIdentifier(model) {
-  if (typeof model === "string") {
-    const trimmed = model.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
-  }
-  if (!model) {
-    return;
-  }
-  const id = model.id?.trim();
-  const displayName = model.display_name?.trim();
-  if (id && displayName) {
-    return `${id} ${displayName}`;
-  }
-  return id ?? displayName;
-}
-function getContextConfig(modelIdentifier, contextWindowSize) {
-  const statusWindowSize = toValidWindowSize(contextWindowSize);
-  if (statusWindowSize !== null) {
-    return {
-      maxTokens: statusWindowSize,
-      usableTokens: Math.floor(statusWindowSize * USABLE_CONTEXT_RATIO)
-    };
-  }
-  const fallbackWindowSize = getFallbackContextWindowSize();
-  const defaultConfig = {
-    maxTokens: fallbackWindowSize,
-    usableTokens: Math.floor(fallbackWindowSize * USABLE_CONTEXT_RATIO)
-  };
-  if (!modelIdentifier) {
-    return defaultConfig;
-  }
-  const inferredWindowSize = parseContextWindowSize(modelIdentifier);
-  if (inferredWindowSize !== null) {
-    return {
-      maxTokens: inferredWindowSize,
-      usableTokens: Math.floor(inferredWindowSize * USABLE_CONTEXT_RATIO)
-    };
-  }
-  return defaultConfig;
-}
-
-// src/utils/context-percentage.ts
-function calculateContextPercentageMetrics(context) {
-  const contextWindowMetrics = getContextWindowMetrics(context.data);
-  const modelIdentifier = getModelContextIdentifier(context.data?.model);
-  const contextConfig = getContextConfig(modelIdentifier, contextWindowMetrics.windowSize);
-  if (contextWindowMetrics.usedPercentage !== null) {
-    return {
-      usedPercentage: contextWindowMetrics.usedPercentage,
-      windowSize: contextConfig.maxTokens
-    };
-  }
-  if (!context.tokenMetrics) {
-    return null;
-  }
-  return {
-    usedPercentage: Math.min(100, context.tokenMetrics.contextLength / contextConfig.maxTokens * 100),
-    windowSize: contextConfig.maxTokens
-  };
-}
-function calculateContextPercentage(context) {
-  return calculateContextPercentageMetrics(context)?.usedPercentage ?? 0;
-}
+// src/types/BarStyle.ts
+var BAR_STYLES = ["dots", "pill", "line", "blocks"];
+var BarStyleSchema = _enum(BAR_STYLES);
 
 // src/utils/fuzzy.ts
 function isWordStart(text, position) {
@@ -23827,6 +23626,746 @@ function getMatchSegments(text, query) {
   return segments;
 }
 
+// src/utils/locales.ts
+var DEFAULT_RESET_LOCALE = "en-US";
+var COMMON_LOCALES = [
+  { value: "en-US", description: "English (United States)", searchText: "english united states usa us america" },
+  { value: "en-CA", description: "English (Canada)", searchText: "english canada canadian ca" },
+  { value: "en-GB", description: "English (United Kingdom)", searchText: "english united kingdom great britain uk gb" },
+  { value: "fr-FR", description: "French (France)", searchText: "french france francais" },
+  { value: "fr-CA", description: "French (Canada)", searchText: "french canada canadian quebec francais" },
+  { value: "de-DE", description: "German (Germany)", searchText: "german germany deutsch deutschland" },
+  { value: "es-ES", description: "Spanish (Spain)", searchText: "spanish spain espanol espana" },
+  { value: "es-MX", description: "Spanish (Mexico)", searchText: "spanish mexico mexican espanol" },
+  { value: "ja-JP", description: "Japanese (Japan)", searchText: "japanese japan nihongo" },
+  { value: "ko-KR", description: "Korean (South Korea)", searchText: "korean korea hangul" },
+  { value: "zh-CN", description: "Chinese (China, Simplified)", searchText: "chinese china simplified mandarin" },
+  { value: "zh-TW", description: "Chinese (Taiwan, Traditional)", searchText: "chinese taiwan traditional mandarin" },
+  { value: "pt-BR", description: "Portuguese (Brazil)", searchText: "portuguese brazil brasil portugues" },
+  { value: "it-IT", description: "Italian (Italy)", searchText: "italian italy italiano" },
+  { value: "nl-NL", description: "Dutch (Netherlands)", searchText: "dutch netherlands nederland nederlands" },
+  { value: "sv-SE", description: "Swedish (Sweden)", searchText: "swedish sweden svenska" },
+  { value: "pl-PL", description: "Polish (Poland)", searchText: "polish poland polski" },
+  { value: "ru-RU", description: "Russian (Russia)", searchText: "russian russia russkiy" },
+  { value: "hi-IN", description: "Hindi (India)", searchText: "hindi india devanagari" },
+  { value: "ar-SA", description: "Arabic (Saudi Arabia)", searchText: "arabic saudi arabia" }
+];
+var DEFAULT_LOCALE_OPTION = {
+  value: DEFAULT_RESET_LOCALE,
+  displayName: DEFAULT_RESET_LOCALE,
+  description: "Default reset timestamp locale",
+  searchText: "default english united states usa us america reset timestamp",
+  sortText: `0000 ${DEFAULT_RESET_LOCALE}`
+};
+function canonicalizeLocale(locale) {
+  const trimmed = locale.trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    const canonical = Intl.getCanonicalLocales(trimmed)[0];
+    if (!canonical || Intl.DateTimeFormat.supportedLocalesOf([canonical]).length === 0) {
+      return null;
+    }
+    return canonical;
+  } catch {
+    return null;
+  }
+}
+function getSystemLocale() {
+  const locale = Intl.DateTimeFormat().resolvedOptions().locale;
+  return typeof locale === "string" ? canonicalizeLocale(locale) : null;
+}
+function createSystemLocaleOption(systemLocale) {
+  return {
+    value: systemLocale,
+    displayName: `System (${systemLocale})`,
+    description: "Current system locale",
+    searchText: `system current local machine runtime ${systemLocale}`,
+    sortText: `0001 ${systemLocale}`
+  };
+}
+function createCommonLocaleOption(locale, sortIndex) {
+  return {
+    value: locale.value,
+    displayName: locale.value,
+    description: locale.description,
+    searchText: locale.searchText,
+    sortText: `${(sortIndex + 2).toString().padStart(4, "0")} ${locale.value}`
+  };
+}
+function createConfiguredLocaleOption(locale) {
+  return {
+    value: locale,
+    displayName: locale,
+    description: "Configured locale",
+    searchText: `configured current ${locale}`,
+    sortText: `0002 ${locale}`
+  };
+}
+function createCustomLocaleOption(locale) {
+  return {
+    value: locale,
+    displayName: `Use ${locale}`,
+    description: "Custom locale",
+    searchText: `custom typed ${locale}`,
+    sortText: `0000 ${locale}`
+  };
+}
+function appendUniqueLocale(options, option) {
+  if (!options.some((existing) => existing.value === option.value)) {
+    options.push(option);
+  }
+}
+function getLocaleOptions(currentLocale) {
+  const options = [DEFAULT_LOCALE_OPTION];
+  const systemLocale = getSystemLocale();
+  if (systemLocale && systemLocale !== DEFAULT_RESET_LOCALE) {
+    appendUniqueLocale(options, createSystemLocaleOption(systemLocale));
+  }
+  const configuredLocale = currentLocale ? canonicalizeLocale(currentLocale) : null;
+  if (configuredLocale && configuredLocale !== DEFAULT_RESET_LOCALE && configuredLocale !== systemLocale) {
+    appendUniqueLocale(options, createConfiguredLocaleOption(configuredLocale));
+  }
+  COMMON_LOCALES.map(createCommonLocaleOption).forEach((option) => {
+    appendUniqueLocale(options, option);
+  });
+  return options;
+}
+function filterLocaleOptions(options, query) {
+  const records = options.map((option) => ({
+    item: option,
+    name: option.displayName,
+    type: option.value,
+    description: option.description,
+    searchText: `${option.displayName} ${option.description} ${option.value} ${option.searchText}`,
+    sortText: option.sortText,
+    secondarySortText: option.value
+  }));
+  const matches = filterFuzzySearchRecords(records, query);
+  const canonicalQuery = canonicalizeLocale(query);
+  if (!canonicalQuery || options.some((option) => option.value === canonicalQuery)) {
+    return matches;
+  }
+  return [
+    createCustomLocaleOption(canonicalQuery),
+    ...matches
+  ];
+}
+function getLocaleMatchSegments(text, query) {
+  return getMatchSegments(text, query);
+}
+
+// src/widgets/shared/editor-display.ts
+function makeModifierText(modifiers) {
+  return modifiers.length > 0 ? `(${modifiers.join(", ")})` : undefined;
+}
+
+// src/widgets/shared/usage-display.ts
+var USAGE_NO_DATA_HIDEABLE_STATE = { key: "no-data", label: "when usage data is unavailable" };
+var SLIDER_WIDTH = 10;
+var PROGRESS_TOGGLE_KEYBIND = { key: "p", label: "(p)rogress toggle", action: "toggle-progress" };
+var INVERT_TOGGLE_KEYBIND = { key: "v", label: "in(v)ert fill", action: "toggle-invert" };
+var PERCENT_TOGGLE_KEYBIND = { key: "e", label: "show p(e)rcent", action: "toggle-percent" };
+var BAR_STYLE_KEYBIND = { key: "b", label: "(b)ar style", action: "cycle-bar-style" };
+var COMPACT_TOGGLE_KEYBIND = { key: "s", label: "(s)hort time", action: "toggle-compact" };
+var CURSOR_TOGGLE_KEYBIND = { key: "t", label: "(t)ime cursor", action: "toggle-cursor" };
+var DATE_TOGGLE_KEYBIND = { key: "t", label: "(t)imestamp", action: "toggle-date" };
+var HOUR_FORMAT_TOGGLE_KEYBIND = { key: "f", label: "12/24 (f)ormat", action: "toggle-hour-format" };
+var WEEKDAY_TOGGLE_KEYBIND = { key: "w", label: "(w)eekday", action: "toggle-weekday" };
+var TIMEZONE_KEYBIND = { key: "z", label: "time(z)one", action: "edit-timezone" };
+var LOCALE_KEYBIND = { key: "l", label: "(l)ocale", action: "edit-locale" };
+function getUsageDisplayMode(item) {
+  const mode = item.metadata?.display;
+  if (mode === "progress" || mode === "progress-short" || mode === "progress-xs" || mode === "fluid" || mode === "slider" || mode === "slider-only") {
+    return mode;
+  }
+  return "time";
+}
+function isUsageProgressMode(mode) {
+  return mode === "progress" || mode === "progress-short" || mode === "progress-xs" || mode === "fluid";
+}
+function isUsageSliderMode(mode) {
+  return mode === "slider" || mode === "slider-only";
+}
+function makeSliderBar(percent, width = SLIDER_WIDTH, options) {
+  const clamped = Math.max(0, Math.min(100, percent));
+  const filled = Math.round(clamped / 100 * width);
+  const cursorPos = options?.cursorPercent !== undefined ? Math.min(Math.floor(Math.max(0, Math.min(100, options.cursorPercent)) / 100 * width), width - 1) : -1;
+  let bar = "";
+  for (let i = 0;i < width; i++) {
+    if (i === cursorPos) {
+      bar += "│";
+    } else if (i < filled) {
+      bar += "▓";
+    } else {
+      bar += "░";
+    }
+  }
+  return bar;
+}
+function getUsageProgressBarWidth(mode) {
+  if (mode === "progress-xs") {
+    return 5;
+  }
+  return mode === "progress" ? 32 : 16;
+}
+function isUsagePercentShown(item) {
+  return isMetadataFlagEnabled(item, "showPercent");
+}
+function toggleUsagePercent(item) {
+  return toggleMetadataFlag(item, "showPercent");
+}
+function formatUsageProgress(item, mode, bar, percentText, style = "blocks") {
+  if (mode === "progress-xs" || mode === "fluid") {
+    return [bar, isUsagePercentShown(item) ? percentText : ""].filter(Boolean).join(" ");
+  }
+  return style === "blocks" ? `[${bar}] ${percentText}` : `${bar} ${percentText}`;
+}
+function cycleBarStyle(item) {
+  const order = [undefined, ...BAR_STYLES];
+  const next = order[(order.findIndex((style) => style === item.metadata?.barStyle) + 1) % order.length];
+  return next ? { ...item, metadata: { ...item.metadata, barStyle: next } } : removeMetadataKeys(item, ["barStyle"]);
+}
+function isUsageInverted(item) {
+  return isMetadataFlagEnabled(item, "invert");
+}
+function isUsageCompact(item) {
+  return isMetadataFlagEnabled(item, "compact");
+}
+function isUsageCursorEnabled(item) {
+  return isMetadataFlagEnabled(item, "cursor");
+}
+function toggleUsageCursor(item) {
+  return toggleMetadataFlag(item, "cursor");
+}
+function isUsageDateMode(item) {
+  return isMetadataFlagEnabled(item, "absolute");
+}
+function isUsage12HourClock(item) {
+  return isMetadataFlagEnabled(item, "hour12");
+}
+function getUsageTimezone(item) {
+  const tz = item.metadata?.timezone;
+  return typeof tz === "string" && tz.length > 0 ? tz : undefined;
+}
+function getUsageLocale(item) {
+  const locale = item.metadata?.locale;
+  return typeof locale === "string" && locale.length > 0 ? locale : undefined;
+}
+function getUsageLocaleModifier(item) {
+  const locale = getUsageLocale(item);
+  return locale ? `locale: ${locale}` : undefined;
+}
+function getUsageTimezoneModifier(item) {
+  const timezone = getUsageTimezone(item);
+  return timezone ? `tz: ${timezone}` : undefined;
+}
+function setUsageTimezone(item, timezone) {
+  if (timezone === "UTC") {
+    return removeMetadataKeys(item, ["timezone"]);
+  }
+  return {
+    ...item,
+    metadata: {
+      ...item.metadata,
+      timezone
+    }
+  };
+}
+function setUsageLocale(item, locale) {
+  const canonicalLocale = canonicalizeLocale(locale);
+  if (!canonicalLocale || canonicalLocale === DEFAULT_RESET_LOCALE) {
+    return removeMetadataKeys(item, ["locale"]);
+  }
+  return {
+    ...item,
+    metadata: {
+      ...item.metadata,
+      locale: canonicalLocale
+    }
+  };
+}
+function toggleUsageCompact(item) {
+  return toggleMetadataFlag(item, "compact");
+}
+function toggleUsageDateMode(item) {
+  return toggleMetadataFlag(item, "absolute");
+}
+function toggleUsageHourFormat(item) {
+  return toggleMetadataFlag(item, "hour12");
+}
+function isUsageWeekdayEnabled(item) {
+  return isMetadataFlagEnabled(item, "weekday");
+}
+function toggleUsageWeekday(item) {
+  return toggleMetadataFlag(item, "weekday");
+}
+function getUsageDisplayModifierText(item, options = {}) {
+  const mode = getUsageDisplayMode(item);
+  const modifiers = [];
+  if (mode === "progress") {
+    modifiers.push("long bar");
+  } else if (mode === "progress-short") {
+    modifiers.push("medium bar");
+  } else if (mode === "progress-xs" || mode === "fluid") {
+    modifiers.push(mode === "fluid" ? "fluid bar" : "tiny bar");
+    if (isUsagePercentShown(item)) {
+      modifiers.push("percent");
+    }
+  } else if (mode === "slider") {
+    modifiers.push("short bar");
+  } else if (mode === "slider-only") {
+    modifiers.push("short bar only");
+  }
+  if (options.showUsageDirection) {
+    modifiers.push(isUsageInverted(item) ? "remaining" : "used");
+  } else if (isUsageInverted(item)) {
+    modifiers.push("inverted");
+  }
+  if (isUsageProgressMode(mode) && item.metadata?.barStyle) {
+    modifiers.push(`${item.metadata.barStyle} style`);
+  }
+  if (isUsageCursorEnabled(item) && (isUsageProgressMode(mode) || isUsageSliderMode(mode))) {
+    modifiers.push("time cursor");
+  }
+  if (options.includeCompact && !isUsageProgressMode(mode) && isUsageCompact(item)) {
+    modifiers.push("compact");
+  }
+  if (options.includeDate && !isUsageProgressMode(mode) && isUsageDateMode(item)) {
+    modifiers.push("date");
+  }
+  if (options.includeDate && !isUsageProgressMode(mode) && isUsageDateMode(item) && isUsage12HourClock(item)) {
+    modifiers.push("12hr");
+  }
+  const timezoneModifier = getUsageTimezoneModifier(item);
+  if (options.includeDate && !isUsageProgressMode(mode) && isUsageDateMode(item) && timezoneModifier) {
+    modifiers.push(timezoneModifier);
+  }
+  const localeModifier = getUsageLocaleModifier(item);
+  if (options.includeDate && !isUsageProgressMode(mode) && isUsageDateMode(item) && localeModifier) {
+    modifiers.push(localeModifier);
+  }
+  return makeModifierText(modifiers);
+}
+function cycleUsageDisplayMode(item, disabledInProgressKeys = [], includeSlider = false, preserveInvertInTime = false) {
+  const currentMode = getUsageDisplayMode(item);
+  let nextMode;
+  if (includeSlider) {
+    nextMode = currentMode === "time" ? "progress" : currentMode === "progress" ? "progress-short" : currentMode === "progress-short" ? "progress-xs" : currentMode === "progress-xs" ? "slider" : currentMode === "slider" ? "slider-only" : "time";
+  } else {
+    nextMode = currentMode === "time" ? "progress" : currentMode === "progress" ? "progress-short" : currentMode === "progress-short" ? "progress-xs" : "time";
+  }
+  const baseKeys = nextMode === "time" ? preserveInvertInTime ? ["cursor"] : ["invert", "cursor"] : disabledInProgressKeys;
+  const keysToRemove = nextMode === "progress-xs" ? baseKeys : [...baseKeys, "showPercent"];
+  const nextItem = removeMetadataKeys(item, keysToRemove);
+  const nextMetadata = {
+    ...nextItem.metadata ?? {},
+    display: nextMode
+  };
+  return {
+    ...nextItem,
+    metadata: nextMetadata
+  };
+}
+function toggleUsageInverted(item) {
+  return toggleMetadataFlag(item, "invert");
+}
+function getUsagePercentCustomKeybinds(item, includeCursor = true) {
+  const nextDirection = item && isUsageInverted(item) ? "used" : "remaining";
+  const keybinds = [
+    PROGRESS_TOGGLE_KEYBIND,
+    { key: "u", label: `(u) show ${nextDirection}`, action: "toggle-invert" }
+  ];
+  if (item && includeCursor) {
+    const mode = getUsageDisplayMode(item);
+    if (isUsageProgressMode(mode) || isUsageSliderMode(mode)) {
+      keybinds.push(CURSOR_TOGGLE_KEYBIND);
+    }
+    if (mode === "progress-xs" || mode === "fluid") {
+      keybinds.push(PERCENT_TOGGLE_KEYBIND);
+    }
+  }
+  if (item && isUsageProgressMode(getUsageDisplayMode(item))) {
+    keybinds.push(BAR_STYLE_KEYBIND);
+  }
+  return keybinds;
+}
+function getUsageTimerCustomKeybinds(item, options = {}) {
+  const keybinds = [PROGRESS_TOGGLE_KEYBIND];
+  const mode = item ? getUsageDisplayMode(item) : "time";
+  const isBarMode = isUsageProgressMode(mode) || isUsageSliderMode(mode);
+  if (item && isBarMode) {
+    keybinds.push(INVERT_TOGGLE_KEYBIND);
+    if (mode === "progress-xs" || mode === "fluid") {
+      keybinds.push(PERCENT_TOGGLE_KEYBIND);
+    }
+    if (isUsageProgressMode(mode)) {
+      keybinds.push(BAR_STYLE_KEYBIND);
+    }
+  } else {
+    keybinds.push(COMPACT_TOGGLE_KEYBIND);
+    if (options.includeDate) {
+      keybinds.push(DATE_TOGGLE_KEYBIND);
+    }
+  }
+  if (item && isUsageDateMode(item) && !isBarMode) {
+    if (options.includeHourFormat) {
+      keybinds.push(HOUR_FORMAT_TOGGLE_KEYBIND);
+    }
+    if (options.includeWeekday) {
+      keybinds.push(WEEKDAY_TOGGLE_KEYBIND);
+    }
+    if (options.includeTimezone) {
+      keybinds.push(TIMEZONE_KEYBIND);
+    }
+    if (options.includeLocale) {
+      keybinds.push(LOCALE_KEYBIND);
+    }
+  }
+  return keybinds;
+}
+
+// src/widgets/shared/progress-bar.ts
+function makeTimerProgressBar(percent, width, options) {
+  const clampedPercent = Math.max(0, Math.min(100, percent));
+  const filledWidth = Math.round(clampedPercent / 100 * width);
+  const cursorPos = options?.cursorPercent !== undefined ? Math.min(Math.floor(Math.max(0, Math.min(100, options.cursorPercent)) / 100 * width), width - 1) : -1;
+  let bar = "";
+  for (let i = 0;i < width; i++) {
+    if (i === cursorPos) {
+      bar += "│";
+    } else if (i < filledWidth) {
+      bar += "█";
+    } else {
+      bar += "░";
+    }
+  }
+  return bar;
+}
+var BAR_COLORS = {
+  fill: "#FFFFFF",
+  track: "#4D4D4D",
+  warn: "#E5B454",
+  danger: "#D4574A",
+  cursor: "#F4F3EE"
+};
+var DEFAULT_SYMBOL = "●";
+var WARN_AT = 75;
+var DANGER_AT = 90;
+var EIGHTHS = " ▏▎▍▌▋▊▉█";
+var FG_OFF = "\x1B[39m";
+function open2(hex) {
+  const styled = source_default.hex(hex)("x");
+  return styled.slice(0, styled.indexOf("x"));
+}
+function blend(from, to, ratio) {
+  const channel = (hex, at) => parseInt(hex.slice(at, at + 2), 16);
+  return "#" + [1, 3, 5].map((at) => Math.round(channel(from, at) + (channel(to, at) - channel(from, at)) * ratio).toString(16).padStart(2, "0")).join("");
+}
+function resolveBarColor(value, fallback) {
+  const hex = value ? /^(?:#|hex:)([0-9a-f]{6})$/i.exec(value)?.[1] : undefined;
+  return hex ? `#${hex}` : (value ? getColorHex(value) : undefined) ?? fallback;
+}
+function resolveBarSymbol(value, fallback = DEFAULT_SYMBOL) {
+  return value !== undefined && Array.from(value).length === 1 ? value : fallback;
+}
+function resolveBarStyle(item, settings) {
+  if (source_default.level === 0) {
+    return "blocks";
+  }
+  const override = item.metadata?.barStyle;
+  return BAR_STYLES.find((style) => style === override) ?? settings.progressBarStyle ?? "dots";
+}
+function getBarFillColor(usedPercent, base = BAR_COLORS.fill) {
+  if (usedPercent === undefined) {
+    return base;
+  }
+  return usedPercent >= DANGER_AT ? BAR_COLORS.danger : usedPercent >= WARN_AT ? BAR_COLORS.warn : base;
+}
+function barOptionsFor(item, settings, consumedPercent) {
+  const meta = item.metadata;
+  const escalate = meta?.escalate === "true" || meta?.escalate !== "false" && settings.progressBarEscalate === true;
+  return {
+    style: resolveBarStyle(item, settings),
+    fill: resolveBarColor(meta?.fillColor, resolveBarColor(settings.progressBarFillColor, BAR_COLORS.fill)),
+    track: resolveBarColor(meta?.trackColor, resolveBarColor(settings.progressBarTrackColor, BAR_COLORS.track)),
+    symbol: resolveBarSymbol(meta?.symbol, resolveBarSymbol(settings.progressBarSymbol)),
+    escalatePercent: escalate ? consumedPercent : undefined
+  };
+}
+function makeStyledBar(percent, width, options) {
+  if (width <= 0) {
+    return "";
+  }
+  if (options.style === "blocks") {
+    return makeTimerProgressBar(percent, width, options);
+  }
+  const clamped = Math.max(0, Math.min(100, percent));
+  const track = options.track ?? BAR_COLORS.track;
+  const fill = getBarFillColor(options.escalatePercent, options.fill);
+  const cursorPos = options.cursorPercent === undefined ? -1 : Math.min(Math.floor(Math.max(0, Math.min(100, options.cursorPercent)) / 100 * width), width - 1);
+  const cells = (paint) => Array.from({ length: width }, (_, i) => i === cursorPos ? `${open2(BAR_COLORS.cursor)}│` : paint(i)).join("");
+  if (options.style === "pill") {
+    const eighths = Math.round(clamped / 100 * width * 8);
+    const full = Math.floor(eighths / 8);
+    const cap = (glyph, on) => on ? `${open2(fill)}${glyph}${FG_OFF}` : " ";
+    const body = cells((i) => i < full ? `${open2(fill)}█` : i === full && eighths % 8 > 0 ? `${open2(fill)}${EIGHTHS.charAt(eighths % 8)}` : " ");
+    return `${cap("", eighths > 0)}${body}${eighths > 0 ? FG_OFF : ""}${cap("", eighths >= width * 8)}`;
+  }
+  const symbol = options.style === "line" ? "━" : options.symbol ?? DEFAULT_SYMBOL;
+  const at = clamped * width / 100;
+  const eps = 0.000000001;
+  return cells((i) => {
+    const color = i + 1 <= at + eps ? fill : i < at - eps ? blend(track, fill, at - i) : track;
+    return `${open2(color)}${symbol}`;
+  }) + FG_OFF;
+}
+var DEFAULT_FLUID_MIN = 3;
+var DEFAULT_FLUID_MAX = 10;
+var FLUID_FALLBACK_CELLS = 5;
+var PILL_CAPS = 2;
+function isFluidBar(item) {
+  return item.metadata?.display === "fluid";
+}
+function toCount(value) {
+  const n = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+  return typeof n === "number" && Number.isInteger(n) && n >= 0 ? n : undefined;
+}
+function resolveFluidLimits(item, settings) {
+  const max = toCount(item.metadata?.barMax) ?? toCount(settings.progressBarMax) ?? DEFAULT_FLUID_MAX;
+  const min = toCount(item.metadata?.barMin) ?? toCount(settings.progressBarMin) ?? DEFAULT_FLUID_MIN;
+  return { min: Math.min(min, max), max };
+}
+function barOverhead(item, settings) {
+  return resolveBarStyle(item, settings) === "pill" ? PILL_CAPS : 0;
+}
+function fluidBarCells(item, settings) {
+  const { min, max } = resolveFluidLimits(item, settings);
+  return Math.min(max, toCount(item.metadata?.fluidCells) ?? Math.max(min, FLUID_FALLBACK_CELLS));
+}
+function withFluidCells(item, cells) {
+  return { ...item, metadata: { ...item.metadata, fluidCells: String(cells) } };
+}
+function allocateFluidCells(available, bars) {
+  const budget = Math.max(0, available - bars.reduce((sum, bar) => sum + bar.overhead, 0));
+  const base = Math.floor(budget / Math.max(1, bars.length));
+  const extra = budget - base * bars.length;
+  return bars.map((bar, i) => Math.min(bar.max, base + (i < extra ? 1 : 0)));
+}
+function renderUsageBar(item, settings, mode, percent, percentText, options = {}) {
+  const consumed = options.escalate === true ? isUsageInverted(item) ? 100 - percent : percent : undefined;
+  const barOptions = barOptionsFor(item, settings, consumed);
+  const width = mode === "fluid" ? fluidBarCells(item, settings) : getUsageProgressBarWidth(mode);
+  const bar = makeStyledBar(percent, width, { ...barOptions, cursorPercent: options.cursor?.cursorPercent });
+  return formatUsageProgress(item, mode, bar, percentText, barOptions.style);
+}
+
+// src/utils/context-window.ts
+function toFiniteNonNegativeNumber(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  return Math.max(0, value);
+}
+function parseUsageTokens(usage) {
+  return {
+    input: toFiniteNonNegativeNumber(usage.input_tokens) ?? 0,
+    output: toFiniteNonNegativeNumber(usage.output_tokens) ?? 0,
+    creation: toFiniteNonNegativeNumber(usage.cache_creation_input_tokens) ?? 0,
+    read: toFiniteNonNegativeNumber(usage.cache_read_input_tokens) ?? 0
+  };
+}
+function contextLengthFromUsageTokens(tokens) {
+  return tokens.input + tokens.creation + tokens.read;
+}
+function clampPercentage(value) {
+  return Math.max(0, Math.min(100, value));
+}
+function getContextWindowMetrics(data) {
+  const contextWindow = data?.context_window;
+  if (!contextWindow) {
+    return {
+      windowSize: null,
+      usedTokens: null,
+      contextLengthTokens: null,
+      usedPercentage: null,
+      remainingPercentage: null,
+      totalInputTokens: null,
+      totalOutputTokens: null,
+      cachedTokens: null,
+      totalTokens: null
+    };
+  }
+  const rawWindowSize = toFiniteNonNegativeNumber(contextWindow.context_window_size);
+  const windowSize = rawWindowSize !== null && rawWindowSize > 0 ? rawWindowSize : null;
+  const totalInputTokens = toFiniteNonNegativeNumber(contextWindow.total_input_tokens);
+  const totalOutputTokens = toFiniteNonNegativeNumber(contextWindow.total_output_tokens);
+  let currentUsageTotalTokens = null;
+  let contextLengthTokens = null;
+  let cachedTokens = null;
+  if (typeof contextWindow.current_usage === "number") {
+    currentUsageTotalTokens = toFiniteNonNegativeNumber(contextWindow.current_usage);
+    contextLengthTokens = currentUsageTotalTokens;
+  } else if (contextWindow.current_usage && typeof contextWindow.current_usage === "object") {
+    const usageTokens = parseUsageTokens(contextWindow.current_usage);
+    const { input, output, creation, read } = usageTokens;
+    currentUsageTotalTokens = input + output + creation + read;
+    contextLengthTokens = contextLengthFromUsageTokens(usageTokens);
+    cachedTokens = creation + read;
+  }
+  const rawUsedPercentage = toFiniteNonNegativeNumber(contextWindow.used_percentage);
+  const rawRemainingPercentage = toFiniteNonNegativeNumber(contextWindow.remaining_percentage);
+  const usedTokensFromPercentage = rawUsedPercentage !== null && windowSize !== null ? rawUsedPercentage / 100 * windowSize : null;
+  const usedTokens = currentUsageTotalTokens ?? usedTokensFromPercentage;
+  const usedPercentage = rawUsedPercentage !== null ? clampPercentage(rawUsedPercentage) : usedTokens !== null && windowSize !== null && windowSize > 0 ? clampPercentage(usedTokens / windowSize * 100) : null;
+  const remainingPercentage = rawRemainingPercentage !== null ? clampPercentage(rawRemainingPercentage) : usedPercentage !== null ? 100 - usedPercentage : null;
+  const totalTokens = currentUsageTotalTokens ?? (totalInputTokens !== null && totalOutputTokens !== null ? totalInputTokens + totalOutputTokens : null);
+  return {
+    windowSize,
+    usedTokens,
+    contextLengthTokens: contextLengthTokens ?? usedTokens,
+    usedPercentage,
+    remainingPercentage,
+    totalInputTokens,
+    totalOutputTokens,
+    cachedTokens,
+    totalTokens
+  };
+}
+function getContextWindowInputTotalTokens(data) {
+  return getContextWindowMetrics(data).totalInputTokens;
+}
+function getContextWindowOutputTotalTokens(data) {
+  return getContextWindowMetrics(data).totalOutputTokens;
+}
+function getContextWindowContextLengthTokens(data) {
+  return getContextWindowMetrics(data).contextLengthTokens;
+}
+function getContextWindowSize(data) {
+  return getContextWindowMetrics(data).windowSize;
+}
+function getContextWindowTurnCacheTokens(data) {
+  const usage = data?.context_window?.current_usage;
+  if (!usage || typeof usage !== "object") {
+    return null;
+  }
+  const { input, creation, read } = parseUsageTokens(usage);
+  return { read, creation, input };
+}
+
+// src/utils/model-context.ts
+var DEFAULT_CONTEXT_WINDOW_SIZE = 200000;
+var USABLE_CONTEXT_RATIO = 0.8;
+var CONTEXT_SIZE_FALLBACK_ENV_VAR = "CCSTATUSLINE_CONTEXT_SIZE_FALLBACK";
+function getFallbackContextWindowSize() {
+  const raw = process.env[CONTEXT_SIZE_FALLBACK_ENV_VAR];
+  if (raw) {
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_CONTEXT_WINDOW_SIZE;
+}
+function toValidWindowSize(value) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return value;
+}
+function parseContextWindowSize(modelIdentifier) {
+  const delimitedMatch = /(?:\(|\[)\s*(\d+(?:[,_]\d+)*(?:\.\d+)?)\s*([km])\s*(?:\)|\])/i.exec(modelIdentifier);
+  if (delimitedMatch) {
+    const delimitedValue = delimitedMatch[1];
+    const delimitedUnit = delimitedMatch[2];
+    if (!delimitedValue || !delimitedUnit) {
+      return null;
+    }
+    const parsed = Number.parseFloat(delimitedValue.replace(/[,_]/g, ""));
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return Math.round(parsed * (delimitedUnit.toLowerCase() === "m" ? 1e6 : 1000));
+    }
+  }
+  const contextMatch = /\b(\d+(?:[,_]\d+)*(?:\.\d+)?)\s*([km])(?:\s*(?:token\s*)?context)?\b/i.exec(modelIdentifier);
+  if (!contextMatch) {
+    return null;
+  }
+  const contextValue = contextMatch[1];
+  const contextUnit = contextMatch[2];
+  if (!contextValue || !contextUnit) {
+    return null;
+  }
+  const parsed = Number.parseFloat(contextValue.replace(/[,_]/g, ""));
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return Math.round(parsed * (contextUnit.toLowerCase() === "m" ? 1e6 : 1000));
+}
+function getModelContextIdentifier(model) {
+  if (typeof model === "string") {
+    const trimmed = model.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (!model) {
+    return;
+  }
+  const id = model.id?.trim();
+  const displayName = model.display_name?.trim();
+  if (id && displayName) {
+    return `${id} ${displayName}`;
+  }
+  return id ?? displayName;
+}
+function getContextConfig(modelIdentifier, contextWindowSize) {
+  const statusWindowSize = toValidWindowSize(contextWindowSize);
+  if (statusWindowSize !== null) {
+    return {
+      maxTokens: statusWindowSize,
+      usableTokens: Math.floor(statusWindowSize * USABLE_CONTEXT_RATIO)
+    };
+  }
+  const fallbackWindowSize = getFallbackContextWindowSize();
+  const defaultConfig = {
+    maxTokens: fallbackWindowSize,
+    usableTokens: Math.floor(fallbackWindowSize * USABLE_CONTEXT_RATIO)
+  };
+  if (!modelIdentifier) {
+    return defaultConfig;
+  }
+  const inferredWindowSize = parseContextWindowSize(modelIdentifier);
+  if (inferredWindowSize !== null) {
+    return {
+      maxTokens: inferredWindowSize,
+      usableTokens: Math.floor(inferredWindowSize * USABLE_CONTEXT_RATIO)
+    };
+  }
+  return defaultConfig;
+}
+
+// src/utils/context-percentage.ts
+function calculateContextPercentageMetrics(context) {
+  const contextWindowMetrics = getContextWindowMetrics(context.data);
+  const modelIdentifier = getModelContextIdentifier(context.data?.model);
+  const contextConfig = getContextConfig(modelIdentifier, contextWindowMetrics.windowSize);
+  if (contextWindowMetrics.usedPercentage !== null) {
+    return {
+      usedPercentage: contextWindowMetrics.usedPercentage,
+      windowSize: contextConfig.maxTokens
+    };
+  }
+  if (!context.tokenMetrics) {
+    return null;
+  }
+  return {
+    usedPercentage: Math.min(100, context.tokenMetrics.contextLength / contextConfig.maxTokens * 100),
+    windowSize: contextConfig.maxTokens
+  };
+}
+function calculateContextPercentage(context) {
+  return calculateContextPercentageMetrics(context)?.usedPercentage ?? 0;
+}
+
 // src/widgets/Model.ts
 class ModelWidget {
   getDefaultColor() {
@@ -23934,11 +24473,6 @@ function buildIdeFileUrl(filePath, ideLinkMode) {
     return `${ideLinkMode}://file/${driveMatch[1]}${encodedPath}`;
   }
   return `${ideLinkMode}://file${encodeFilePathForUri(normalizedPath)}`;
-}
-
-// src/widgets/shared/editor-display.ts
-function makeModifierText(modifiers) {
-  return modifiers.length > 0 ? `(${modifiers.join(", ")})` : undefined;
 }
 
 // node_modules/ink/build/render.js
@@ -29562,7 +30096,7 @@ var SymbolSlotsEditor = ({ widget, slots, onComplete, onCancel }) => {
 };
 
 // src/widgets/GitBranch.ts
-var DEFAULT_SYMBOL = "⎇";
+var DEFAULT_SYMBOL2 = "⎇";
 var LINK_KEY = "linkToRepo";
 var LEGACY_LINK_KEY = "linkToGitHub";
 var TOGGLE_LINK_ACTION = "toggle-link";
@@ -29621,7 +30155,7 @@ class GitBranchWidget {
   render(item, context, settings) {
     const hideNoGit = isHidden(item, NO_GIT_HIDEABLE_STATE.key);
     const isLink = isLinkEnabled(item);
-    const prefix = formatSymbolPrefix(item, DEFAULT_SYMBOL);
+    const prefix = formatSymbolPrefix(item, DEFAULT_SYMBOL2);
     if (context.isPreview) {
       const text = item.rawValue ? "main" : `${prefix}main`;
       return isLink ? renderOsc8Link("https://github.com/owner/repo/tree/main", text) : text;
@@ -29656,7 +30190,7 @@ class GitBranchWidget {
     if (props.action === MAX_WIDTH_ACTION) {
       return renderMaxWidthEditor(props);
     }
-    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL);
+    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL2);
   }
   supportsRawValue() {
     return true;
@@ -30309,7 +30843,7 @@ class GitPrWidget {
   }
 }
 // src/widgets/GitWorktree.ts
-var DEFAULT_SYMBOL2 = "\uD81A\uDC30";
+var DEFAULT_SYMBOL3 = "\uD81A\uDC30";
 
 class GitWorktreeWidget {
   getDefaultColor() {
@@ -30332,7 +30866,7 @@ class GitWorktreeWidget {
   }
   render(item, context) {
     const hideNoGit = isHidden(item, NO_GIT_HIDEABLE_STATE.key);
-    const prefix = formatSymbolPrefix(item, DEFAULT_SYMBOL2);
+    const prefix = formatSymbolPrefix(item, DEFAULT_SYMBOL3);
     if (context.isPreview)
       return item.rawValue ? "main" : `${prefix}main`;
     if (!isInsideGitWorkTree(context)) {
@@ -30367,7 +30901,7 @@ class GitWorktreeWidget {
     return [getSymbolKeybind()];
   }
   renderEditor(props) {
-    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL2);
+    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL3);
   }
   supportsRawValue() {
     return true;
@@ -30441,7 +30975,7 @@ class GitStatusWidget {
   }
 }
 // src/widgets/GitStaged.ts
-var DEFAULT_SYMBOL3 = "+";
+var DEFAULT_SYMBOL4 = "+";
 
 class GitStagedWidget {
   getDefaultColor() {
@@ -30465,7 +30999,7 @@ class GitStagedWidget {
   render(item, context, _settings) {
     const hideNoGit = isHidden(item, NO_GIT_HIDEABLE_STATE.key);
     if (context.isPreview) {
-      return item.rawValue ? "true" : getSymbol(item, DEFAULT_SYMBOL3);
+      return item.rawValue ? "true" : getSymbol(item, DEFAULT_SYMBOL4);
     }
     if (!isInsideGitWorkTree(context)) {
       return hideNoGit ? null : "(no git)";
@@ -30474,13 +31008,13 @@ class GitStagedWidget {
     if (!status.staged) {
       return null;
     }
-    return item.rawValue ? "true" : getSymbol(item, DEFAULT_SYMBOL3);
+    return item.rawValue ? "true" : getSymbol(item, DEFAULT_SYMBOL4);
   }
   getCustomKeybinds() {
     return [getSymbolKeybind()];
   }
   renderEditor(props) {
-    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL3);
+    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL4);
   }
   getNumericValue(context, _item) {
     if (!isInsideGitWorkTree(context))
@@ -30496,7 +31030,7 @@ class GitStagedWidget {
   }
 }
 // src/widgets/GitUnstaged.ts
-var DEFAULT_SYMBOL4 = "*";
+var DEFAULT_SYMBOL5 = "*";
 
 class GitUnstagedWidget {
   getDefaultColor() {
@@ -30520,7 +31054,7 @@ class GitUnstagedWidget {
   render(item, context, _settings) {
     const hideNoGit = isHidden(item, NO_GIT_HIDEABLE_STATE.key);
     if (context.isPreview) {
-      return item.rawValue ? "true" : getSymbol(item, DEFAULT_SYMBOL4);
+      return item.rawValue ? "true" : getSymbol(item, DEFAULT_SYMBOL5);
     }
     if (!isInsideGitWorkTree(context)) {
       return hideNoGit ? null : "(no git)";
@@ -30529,13 +31063,13 @@ class GitUnstagedWidget {
     if (!status.unstaged) {
       return null;
     }
-    return item.rawValue ? "true" : getSymbol(item, DEFAULT_SYMBOL4);
+    return item.rawValue ? "true" : getSymbol(item, DEFAULT_SYMBOL5);
   }
   getCustomKeybinds() {
     return [getSymbolKeybind()];
   }
   renderEditor(props) {
-    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL4);
+    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL5);
   }
   getNumericValue(context, _item) {
     if (!isInsideGitWorkTree(context))
@@ -30551,7 +31085,7 @@ class GitUnstagedWidget {
   }
 }
 // src/widgets/GitUntracked.ts
-var DEFAULT_SYMBOL5 = "?";
+var DEFAULT_SYMBOL6 = "?";
 
 class GitUntrackedWidget {
   getDefaultColor() {
@@ -30575,7 +31109,7 @@ class GitUntrackedWidget {
   render(item, context, _settings) {
     const hideNoGit = isHidden(item, NO_GIT_HIDEABLE_STATE.key);
     if (context.isPreview) {
-      return item.rawValue ? "true" : getSymbol(item, DEFAULT_SYMBOL5);
+      return item.rawValue ? "true" : getSymbol(item, DEFAULT_SYMBOL6);
     }
     if (!isInsideGitWorkTree(context)) {
       return hideNoGit ? null : "(no git)";
@@ -30584,13 +31118,13 @@ class GitUntrackedWidget {
     if (!status.untracked) {
       return null;
     }
-    return item.rawValue ? "true" : getSymbol(item, DEFAULT_SYMBOL5);
+    return item.rawValue ? "true" : getSymbol(item, DEFAULT_SYMBOL6);
   }
   getCustomKeybinds() {
     return [getSymbolKeybind()];
   }
   renderEditor(props) {
-    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL5);
+    return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL6);
   }
   getNumericValue(context, _item) {
     if (!isInsideGitWorkTree(context))
@@ -31787,405 +32321,6 @@ function handleContextInverseAction(action, item) {
     return null;
   }
   return toggleMetadataFlag(item, INVERSE_KEY);
-}
-
-// src/types/BarStyle.ts
-var BAR_STYLES = ["dots", "pill", "line", "blocks"];
-var BarStyleSchema = _enum(BAR_STYLES);
-
-// src/utils/locales.ts
-var DEFAULT_RESET_LOCALE = "en-US";
-var COMMON_LOCALES = [
-  { value: "en-US", description: "English (United States)", searchText: "english united states usa us america" },
-  { value: "en-CA", description: "English (Canada)", searchText: "english canada canadian ca" },
-  { value: "en-GB", description: "English (United Kingdom)", searchText: "english united kingdom great britain uk gb" },
-  { value: "fr-FR", description: "French (France)", searchText: "french france francais" },
-  { value: "fr-CA", description: "French (Canada)", searchText: "french canada canadian quebec francais" },
-  { value: "de-DE", description: "German (Germany)", searchText: "german germany deutsch deutschland" },
-  { value: "es-ES", description: "Spanish (Spain)", searchText: "spanish spain espanol espana" },
-  { value: "es-MX", description: "Spanish (Mexico)", searchText: "spanish mexico mexican espanol" },
-  { value: "ja-JP", description: "Japanese (Japan)", searchText: "japanese japan nihongo" },
-  { value: "ko-KR", description: "Korean (South Korea)", searchText: "korean korea hangul" },
-  { value: "zh-CN", description: "Chinese (China, Simplified)", searchText: "chinese china simplified mandarin" },
-  { value: "zh-TW", description: "Chinese (Taiwan, Traditional)", searchText: "chinese taiwan traditional mandarin" },
-  { value: "pt-BR", description: "Portuguese (Brazil)", searchText: "portuguese brazil brasil portugues" },
-  { value: "it-IT", description: "Italian (Italy)", searchText: "italian italy italiano" },
-  { value: "nl-NL", description: "Dutch (Netherlands)", searchText: "dutch netherlands nederland nederlands" },
-  { value: "sv-SE", description: "Swedish (Sweden)", searchText: "swedish sweden svenska" },
-  { value: "pl-PL", description: "Polish (Poland)", searchText: "polish poland polski" },
-  { value: "ru-RU", description: "Russian (Russia)", searchText: "russian russia russkiy" },
-  { value: "hi-IN", description: "Hindi (India)", searchText: "hindi india devanagari" },
-  { value: "ar-SA", description: "Arabic (Saudi Arabia)", searchText: "arabic saudi arabia" }
-];
-var DEFAULT_LOCALE_OPTION = {
-  value: DEFAULT_RESET_LOCALE,
-  displayName: DEFAULT_RESET_LOCALE,
-  description: "Default reset timestamp locale",
-  searchText: "default english united states usa us america reset timestamp",
-  sortText: `0000 ${DEFAULT_RESET_LOCALE}`
-};
-function canonicalizeLocale(locale) {
-  const trimmed = locale.trim();
-  if (!trimmed) {
-    return null;
-  }
-  try {
-    const canonical = Intl.getCanonicalLocales(trimmed)[0];
-    if (!canonical || Intl.DateTimeFormat.supportedLocalesOf([canonical]).length === 0) {
-      return null;
-    }
-    return canonical;
-  } catch {
-    return null;
-  }
-}
-function getSystemLocale() {
-  const locale = Intl.DateTimeFormat().resolvedOptions().locale;
-  return typeof locale === "string" ? canonicalizeLocale(locale) : null;
-}
-function createSystemLocaleOption(systemLocale) {
-  return {
-    value: systemLocale,
-    displayName: `System (${systemLocale})`,
-    description: "Current system locale",
-    searchText: `system current local machine runtime ${systemLocale}`,
-    sortText: `0001 ${systemLocale}`
-  };
-}
-function createCommonLocaleOption(locale, sortIndex) {
-  return {
-    value: locale.value,
-    displayName: locale.value,
-    description: locale.description,
-    searchText: locale.searchText,
-    sortText: `${(sortIndex + 2).toString().padStart(4, "0")} ${locale.value}`
-  };
-}
-function createConfiguredLocaleOption(locale) {
-  return {
-    value: locale,
-    displayName: locale,
-    description: "Configured locale",
-    searchText: `configured current ${locale}`,
-    sortText: `0002 ${locale}`
-  };
-}
-function createCustomLocaleOption(locale) {
-  return {
-    value: locale,
-    displayName: `Use ${locale}`,
-    description: "Custom locale",
-    searchText: `custom typed ${locale}`,
-    sortText: `0000 ${locale}`
-  };
-}
-function appendUniqueLocale(options, option) {
-  if (!options.some((existing) => existing.value === option.value)) {
-    options.push(option);
-  }
-}
-function getLocaleOptions(currentLocale) {
-  const options = [DEFAULT_LOCALE_OPTION];
-  const systemLocale = getSystemLocale();
-  if (systemLocale && systemLocale !== DEFAULT_RESET_LOCALE) {
-    appendUniqueLocale(options, createSystemLocaleOption(systemLocale));
-  }
-  const configuredLocale = currentLocale ? canonicalizeLocale(currentLocale) : null;
-  if (configuredLocale && configuredLocale !== DEFAULT_RESET_LOCALE && configuredLocale !== systemLocale) {
-    appendUniqueLocale(options, createConfiguredLocaleOption(configuredLocale));
-  }
-  COMMON_LOCALES.map(createCommonLocaleOption).forEach((option) => {
-    appendUniqueLocale(options, option);
-  });
-  return options;
-}
-function filterLocaleOptions(options, query) {
-  const records = options.map((option) => ({
-    item: option,
-    name: option.displayName,
-    type: option.value,
-    description: option.description,
-    searchText: `${option.displayName} ${option.description} ${option.value} ${option.searchText}`,
-    sortText: option.sortText,
-    secondarySortText: option.value
-  }));
-  const matches = filterFuzzySearchRecords(records, query);
-  const canonicalQuery = canonicalizeLocale(query);
-  if (!canonicalQuery || options.some((option) => option.value === canonicalQuery)) {
-    return matches;
-  }
-  return [
-    createCustomLocaleOption(canonicalQuery),
-    ...matches
-  ];
-}
-function getLocaleMatchSegments(text, query) {
-  return getMatchSegments(text, query);
-}
-
-// src/widgets/shared/usage-display.ts
-var USAGE_NO_DATA_HIDEABLE_STATE = { key: "no-data", label: "when usage data is unavailable" };
-var SLIDER_WIDTH = 10;
-var PROGRESS_TOGGLE_KEYBIND = { key: "p", label: "(p)rogress toggle", action: "toggle-progress" };
-var INVERT_TOGGLE_KEYBIND = { key: "v", label: "in(v)ert fill", action: "toggle-invert" };
-var PERCENT_TOGGLE_KEYBIND = { key: "e", label: "show p(e)rcent", action: "toggle-percent" };
-var BAR_STYLE_KEYBIND = { key: "b", label: "(b)ar style", action: "cycle-bar-style" };
-var COMPACT_TOGGLE_KEYBIND = { key: "s", label: "(s)hort time", action: "toggle-compact" };
-var CURSOR_TOGGLE_KEYBIND = { key: "t", label: "(t)ime cursor", action: "toggle-cursor" };
-var DATE_TOGGLE_KEYBIND = { key: "t", label: "(t)imestamp", action: "toggle-date" };
-var HOUR_FORMAT_TOGGLE_KEYBIND = { key: "f", label: "12/24 (f)ormat", action: "toggle-hour-format" };
-var WEEKDAY_TOGGLE_KEYBIND = { key: "w", label: "(w)eekday", action: "toggle-weekday" };
-var TIMEZONE_KEYBIND = { key: "z", label: "time(z)one", action: "edit-timezone" };
-var LOCALE_KEYBIND = { key: "l", label: "(l)ocale", action: "edit-locale" };
-function getUsageDisplayMode(item) {
-  const mode = item.metadata?.display;
-  if (mode === "progress" || mode === "progress-short" || mode === "progress-xs" || mode === "slider" || mode === "slider-only") {
-    return mode;
-  }
-  return "time";
-}
-function isUsageProgressMode(mode) {
-  return mode === "progress" || mode === "progress-short" || mode === "progress-xs";
-}
-function isUsageSliderMode(mode) {
-  return mode === "slider" || mode === "slider-only";
-}
-function makeSliderBar(percent, width = SLIDER_WIDTH, options) {
-  const clamped = Math.max(0, Math.min(100, percent));
-  const filled = Math.round(clamped / 100 * width);
-  const cursorPos = options?.cursorPercent !== undefined ? Math.min(Math.floor(Math.max(0, Math.min(100, options.cursorPercent)) / 100 * width), width - 1) : -1;
-  let bar = "";
-  for (let i = 0;i < width; i++) {
-    if (i === cursorPos) {
-      bar += "│";
-    } else if (i < filled) {
-      bar += "▓";
-    } else {
-      bar += "░";
-    }
-  }
-  return bar;
-}
-function getUsageProgressBarWidth(mode) {
-  if (mode === "progress-xs") {
-    return 5;
-  }
-  return mode === "progress" ? 32 : 16;
-}
-function isUsagePercentShown(item) {
-  return isMetadataFlagEnabled(item, "showPercent");
-}
-function toggleUsagePercent(item) {
-  return toggleMetadataFlag(item, "showPercent");
-}
-function formatUsageProgress(item, mode, bar, percentText, style = "blocks") {
-  if (mode === "progress-xs") {
-    return isUsagePercentShown(item) ? `${bar} ${percentText}` : bar;
-  }
-  return style === "blocks" ? `[${bar}] ${percentText}` : `${bar} ${percentText}`;
-}
-function cycleBarStyle(item) {
-  const order = [undefined, ...BAR_STYLES];
-  const next = order[(order.findIndex((style) => style === item.metadata?.barStyle) + 1) % order.length];
-  return next ? { ...item, metadata: { ...item.metadata, barStyle: next } } : removeMetadataKeys(item, ["barStyle"]);
-}
-function isUsageInverted(item) {
-  return isMetadataFlagEnabled(item, "invert");
-}
-function isUsageCompact(item) {
-  return isMetadataFlagEnabled(item, "compact");
-}
-function isUsageCursorEnabled(item) {
-  return isMetadataFlagEnabled(item, "cursor");
-}
-function toggleUsageCursor(item) {
-  return toggleMetadataFlag(item, "cursor");
-}
-function isUsageDateMode(item) {
-  return isMetadataFlagEnabled(item, "absolute");
-}
-function isUsage12HourClock(item) {
-  return isMetadataFlagEnabled(item, "hour12");
-}
-function getUsageTimezone(item) {
-  const tz = item.metadata?.timezone;
-  return typeof tz === "string" && tz.length > 0 ? tz : undefined;
-}
-function getUsageLocale(item) {
-  const locale = item.metadata?.locale;
-  return typeof locale === "string" && locale.length > 0 ? locale : undefined;
-}
-function getUsageLocaleModifier(item) {
-  const locale = getUsageLocale(item);
-  return locale ? `locale: ${locale}` : undefined;
-}
-function getUsageTimezoneModifier(item) {
-  const timezone = getUsageTimezone(item);
-  return timezone ? `tz: ${timezone}` : undefined;
-}
-function setUsageTimezone(item, timezone) {
-  if (timezone === "UTC") {
-    return removeMetadataKeys(item, ["timezone"]);
-  }
-  return {
-    ...item,
-    metadata: {
-      ...item.metadata,
-      timezone
-    }
-  };
-}
-function setUsageLocale(item, locale) {
-  const canonicalLocale = canonicalizeLocale(locale);
-  if (!canonicalLocale || canonicalLocale === DEFAULT_RESET_LOCALE) {
-    return removeMetadataKeys(item, ["locale"]);
-  }
-  return {
-    ...item,
-    metadata: {
-      ...item.metadata,
-      locale: canonicalLocale
-    }
-  };
-}
-function toggleUsageCompact(item) {
-  return toggleMetadataFlag(item, "compact");
-}
-function toggleUsageDateMode(item) {
-  return toggleMetadataFlag(item, "absolute");
-}
-function toggleUsageHourFormat(item) {
-  return toggleMetadataFlag(item, "hour12");
-}
-function isUsageWeekdayEnabled(item) {
-  return isMetadataFlagEnabled(item, "weekday");
-}
-function toggleUsageWeekday(item) {
-  return toggleMetadataFlag(item, "weekday");
-}
-function getUsageDisplayModifierText(item, options = {}) {
-  const mode = getUsageDisplayMode(item);
-  const modifiers = [];
-  if (mode === "progress") {
-    modifiers.push("long bar");
-  } else if (mode === "progress-short") {
-    modifiers.push("medium bar");
-  } else if (mode === "progress-xs") {
-    modifiers.push("tiny bar");
-    if (isUsagePercentShown(item)) {
-      modifiers.push("percent");
-    }
-  } else if (mode === "slider") {
-    modifiers.push("short bar");
-  } else if (mode === "slider-only") {
-    modifiers.push("short bar only");
-  }
-  if (options.showUsageDirection) {
-    modifiers.push(isUsageInverted(item) ? "remaining" : "used");
-  } else if (isUsageInverted(item)) {
-    modifiers.push("inverted");
-  }
-  if (isUsageProgressMode(mode) && item.metadata?.barStyle) {
-    modifiers.push(`${item.metadata.barStyle} style`);
-  }
-  if (isUsageCursorEnabled(item) && (isUsageProgressMode(mode) || isUsageSliderMode(mode))) {
-    modifiers.push("time cursor");
-  }
-  if (options.includeCompact && !isUsageProgressMode(mode) && isUsageCompact(item)) {
-    modifiers.push("compact");
-  }
-  if (options.includeDate && !isUsageProgressMode(mode) && isUsageDateMode(item)) {
-    modifiers.push("date");
-  }
-  if (options.includeDate && !isUsageProgressMode(mode) && isUsageDateMode(item) && isUsage12HourClock(item)) {
-    modifiers.push("12hr");
-  }
-  const timezoneModifier = getUsageTimezoneModifier(item);
-  if (options.includeDate && !isUsageProgressMode(mode) && isUsageDateMode(item) && timezoneModifier) {
-    modifiers.push(timezoneModifier);
-  }
-  const localeModifier = getUsageLocaleModifier(item);
-  if (options.includeDate && !isUsageProgressMode(mode) && isUsageDateMode(item) && localeModifier) {
-    modifiers.push(localeModifier);
-  }
-  return makeModifierText(modifiers);
-}
-function cycleUsageDisplayMode(item, disabledInProgressKeys = [], includeSlider = false, preserveInvertInTime = false) {
-  const currentMode = getUsageDisplayMode(item);
-  let nextMode;
-  if (includeSlider) {
-    nextMode = currentMode === "time" ? "progress" : currentMode === "progress" ? "progress-short" : currentMode === "progress-short" ? "progress-xs" : currentMode === "progress-xs" ? "slider" : currentMode === "slider" ? "slider-only" : "time";
-  } else {
-    nextMode = currentMode === "time" ? "progress" : currentMode === "progress" ? "progress-short" : currentMode === "progress-short" ? "progress-xs" : "time";
-  }
-  const baseKeys = nextMode === "time" ? preserveInvertInTime ? ["cursor"] : ["invert", "cursor"] : disabledInProgressKeys;
-  const keysToRemove = nextMode === "progress-xs" ? baseKeys : [...baseKeys, "showPercent"];
-  const nextItem = removeMetadataKeys(item, keysToRemove);
-  const nextMetadata = {
-    ...nextItem.metadata ?? {},
-    display: nextMode
-  };
-  return {
-    ...nextItem,
-    metadata: nextMetadata
-  };
-}
-function toggleUsageInverted(item) {
-  return toggleMetadataFlag(item, "invert");
-}
-function getUsagePercentCustomKeybinds(item, includeCursor = true) {
-  const nextDirection = item && isUsageInverted(item) ? "used" : "remaining";
-  const keybinds = [
-    PROGRESS_TOGGLE_KEYBIND,
-    { key: "u", label: `(u) show ${nextDirection}`, action: "toggle-invert" }
-  ];
-  if (item && includeCursor) {
-    const mode = getUsageDisplayMode(item);
-    if (isUsageProgressMode(mode) || isUsageSliderMode(mode)) {
-      keybinds.push(CURSOR_TOGGLE_KEYBIND);
-    }
-    if (mode === "progress-xs") {
-      keybinds.push(PERCENT_TOGGLE_KEYBIND);
-    }
-  }
-  if (item && isUsageProgressMode(getUsageDisplayMode(item))) {
-    keybinds.push(BAR_STYLE_KEYBIND);
-  }
-  return keybinds;
-}
-function getUsageTimerCustomKeybinds(item, options = {}) {
-  const keybinds = [PROGRESS_TOGGLE_KEYBIND];
-  const mode = item ? getUsageDisplayMode(item) : "time";
-  const isBarMode = isUsageProgressMode(mode) || isUsageSliderMode(mode);
-  if (item && isBarMode) {
-    keybinds.push(INVERT_TOGGLE_KEYBIND);
-    if (mode === "progress-xs") {
-      keybinds.push(PERCENT_TOGGLE_KEYBIND);
-    }
-    if (isUsageProgressMode(mode)) {
-      keybinds.push(BAR_STYLE_KEYBIND);
-    }
-  } else {
-    keybinds.push(COMPACT_TOGGLE_KEYBIND);
-    if (options.includeDate) {
-      keybinds.push(DATE_TOGGLE_KEYBIND);
-    }
-  }
-  if (item && isUsageDateMode(item) && !isBarMode) {
-    if (options.includeHourFormat) {
-      keybinds.push(HOUR_FORMAT_TOGGLE_KEYBIND);
-    }
-    if (options.includeWeekday) {
-      keybinds.push(WEEKDAY_TOGGLE_KEYBIND);
-    }
-    if (options.includeTimezone) {
-      keybinds.push(TIMEZONE_KEYBIND);
-    }
-    if (options.includeLocale) {
-      keybinds.push(LOCALE_KEYBIND);
-    }
-  }
-  return keybinds;
 }
 
 // src/widgets/shared/context-slider.ts
@@ -33703,6 +33838,8 @@ var SettingsSchema = object({
   progressBarTrackColor: string().optional(),
   progressBarSymbol: string().optional(),
   progressBarEscalate: boolean2().optional(),
+  progressBarMin: number().optional(),
+  progressBarMax: number().optional(),
   numberFormat: GlobalNumberFormatSchema.optional(),
   gitCacheTtlSeconds: number().min(0).max(60).default(5),
   terminalWidthCacheTtlSeconds: number().min(0).max(300).default(5),
@@ -34175,7 +34312,7 @@ async function saveSettings(settings) {
   };
   await writeSettingsJson(settingsWithVersion, paths);
   try {
-    const { syncWidgetHooks } = await import("./hooks-zqvc93d7.js");
+    const { syncWidgetHooks } = await import("./hooks-1w6a8xk0.js");
     await syncWidgetHooks(settings);
   } catch {}
 }
@@ -34548,7 +34685,7 @@ async function installStatusLine({
   }
   const savedSettings = await loadSavedSettingsForHookSync();
   if (savedSettings) {
-    const { syncWidgetHooks } = await import("./hooks-zqvc93d7.js");
+    const { syncWidgetHooks } = await import("./hooks-1w6a8xk0.js");
     await syncWidgetHooks(savedSettings);
   }
 }
@@ -34566,7 +34703,7 @@ async function uninstallStatusLine() {
   }
   await saveInstallationMetadata(undefined);
   try {
-    const { removeManagedHooks } = await import("./hooks-zqvc93d7.js");
+    const { removeManagedHooks } = await import("./hooks-1w6a8xk0.js");
     await removeManagedHooks();
   } catch {}
 }
@@ -37345,105 +37482,6 @@ function makeUsageProgressBar(percent, width = 15) {
   const empty = width - filled;
   return "[" + "█".repeat(filled) + "░".repeat(empty) + "]";
 }
-// src/widgets/shared/progress-bar.ts
-function makeTimerProgressBar(percent, width, options) {
-  const clampedPercent = Math.max(0, Math.min(100, percent));
-  const filledWidth = Math.round(clampedPercent / 100 * width);
-  const cursorPos = options?.cursorPercent !== undefined ? Math.min(Math.floor(Math.max(0, Math.min(100, options.cursorPercent)) / 100 * width), width - 1) : -1;
-  let bar = "";
-  for (let i = 0;i < width; i++) {
-    if (i === cursorPos) {
-      bar += "│";
-    } else if (i < filledWidth) {
-      bar += "█";
-    } else {
-      bar += "░";
-    }
-  }
-  return bar;
-}
-var BAR_COLORS = {
-  fill: "#FFFFFF",
-  track: "#4D4D4D",
-  warn: "#E5B454",
-  danger: "#D4574A",
-  cursor: "#F4F3EE"
-};
-var DEFAULT_SYMBOL6 = "●";
-var WARN_AT = 75;
-var DANGER_AT = 90;
-var EIGHTHS = " ▏▎▍▌▋▊▉█";
-var FG_OFF = "\x1B[39m";
-function open2(hex) {
-  const styled = source_default.hex(hex)("x");
-  return styled.slice(0, styled.indexOf("x"));
-}
-function blend(from, to, ratio) {
-  const channel = (hex, at) => parseInt(hex.slice(at, at + 2), 16);
-  return "#" + [1, 3, 5].map((at) => Math.round(channel(from, at) + (channel(to, at) - channel(from, at)) * ratio).toString(16).padStart(2, "0")).join("");
-}
-function resolveBarColor(value, fallback) {
-  const hex = value ? /^(?:#|hex:)([0-9a-f]{6})$/i.exec(value)?.[1] : undefined;
-  return hex ? `#${hex}` : (value ? getColorHex(value) : undefined) ?? fallback;
-}
-function resolveBarSymbol(value, fallback = DEFAULT_SYMBOL6) {
-  return value !== undefined && Array.from(value).length === 1 ? value : fallback;
-}
-function resolveBarStyle(item, settings) {
-  if (source_default.level === 0) {
-    return "blocks";
-  }
-  const override = item.metadata?.barStyle;
-  return BAR_STYLES.find((style) => style === override) ?? settings.progressBarStyle ?? "dots";
-}
-function getBarFillColor(usedPercent, base = BAR_COLORS.fill) {
-  if (usedPercent === undefined) {
-    return base;
-  }
-  return usedPercent >= DANGER_AT ? BAR_COLORS.danger : usedPercent >= WARN_AT ? BAR_COLORS.warn : base;
-}
-function barOptionsFor(item, settings, consumedPercent) {
-  const meta = item.metadata;
-  const escalate = meta?.escalate === "true" || meta?.escalate !== "false" && settings.progressBarEscalate === true;
-  return {
-    style: resolveBarStyle(item, settings),
-    fill: resolveBarColor(meta?.fillColor, resolveBarColor(settings.progressBarFillColor, BAR_COLORS.fill)),
-    track: resolveBarColor(meta?.trackColor, resolveBarColor(settings.progressBarTrackColor, BAR_COLORS.track)),
-    symbol: resolveBarSymbol(meta?.symbol, resolveBarSymbol(settings.progressBarSymbol)),
-    escalatePercent: escalate ? consumedPercent : undefined
-  };
-}
-function makeStyledBar(percent, width, options) {
-  if (options.style === "blocks") {
-    return makeTimerProgressBar(percent, width, options);
-  }
-  const clamped = Math.max(0, Math.min(100, percent));
-  const track = options.track ?? BAR_COLORS.track;
-  const fill = getBarFillColor(options.escalatePercent, options.fill);
-  const cursorPos = options.cursorPercent === undefined ? -1 : Math.min(Math.floor(Math.max(0, Math.min(100, options.cursorPercent)) / 100 * width), width - 1);
-  const cells = (paint) => Array.from({ length: width }, (_, i) => i === cursorPos ? `${open2(BAR_COLORS.cursor)}│` : paint(i)).join("");
-  if (options.style === "pill") {
-    const eighths = Math.round(clamped / 100 * width * 8);
-    const full = Math.floor(eighths / 8);
-    const cap = (glyph, on) => on ? `${open2(fill)}${glyph}${FG_OFF}` : " ";
-    const body = cells((i) => i < full ? `${open2(fill)}█` : i === full && eighths % 8 > 0 ? `${open2(fill)}${EIGHTHS.charAt(eighths % 8)}` : " ");
-    return `${cap("", eighths > 0)}${body}${eighths > 0 ? FG_OFF : ""}${cap("", eighths >= width * 8)}`;
-  }
-  const symbol = options.style === "line" ? "━" : options.symbol ?? DEFAULT_SYMBOL6;
-  const at = clamped * width / 100;
-  const eps = 0.000000001;
-  return cells((i) => {
-    const color = i + 1 <= at + eps ? fill : i < at - eps ? blend(track, fill, at - i) : track;
-    return `${open2(color)}${symbol}`;
-  }) + FG_OFF;
-}
-function renderUsageBar(item, settings, mode, percent, percentText, options = {}) {
-  const consumed = options.escalate === true ? isUsageInverted(item) ? 100 - percent : percent : undefined;
-  const barOptions = barOptionsFor(item, settings, consumed);
-  const bar = makeStyledBar(percent, getUsageProgressBarWidth(mode), { ...barOptions, cursorPercent: options.cursor?.cursorPercent });
-  return formatUsageProgress(item, mode, bar, percentText, barOptions.style);
-}
-
 // src/widgets/BlockTimer.ts
 var NO_DATA_HIDEABLE_STATE3 = { key: "no-data", label: "when there is no active block" };
 
@@ -40235,7 +40273,7 @@ class WeeklyResetTimerWidget {
 // src/widgets/ContextBar.ts
 function getDisplayMode(item) {
   const mode = item.metadata?.display;
-  if (mode === "progress" || mode === "progress-xs" || mode === "slider" || mode === "slider-only") {
+  if (mode === "progress" || mode === "progress-xs" || mode === "fluid" || mode === "slider" || mode === "slider-only") {
     return mode;
   }
   return "progress-short";
@@ -40262,8 +40300,8 @@ class ContextBarWidget {
     const modifiers = [];
     if (mode === "progress-short") {
       modifiers.push("medium bar");
-    } else if (mode === "progress-xs") {
-      modifiers.push("tiny bar");
+    } else if (mode === "progress-xs" || mode === "fluid") {
+      modifiers.push(mode === "fluid" ? "fluid bar" : "tiny bar");
       if (isMetadataFlagEnabled(item, "showPercent")) {
         modifiers.push("percent");
       }
@@ -40306,17 +40344,21 @@ class ContextBarWidget {
       }
     };
   }
-  makeBar(item, settings, percent, width) {
+  makeBar(item, settings, percent, width, framed = width > 5) {
     const options = barOptionsFor(item, settings, percent);
-    return options.style === "blocks" && width > 5 ? makeUsageProgressBar(percent, width) : makeStyledBar(percent, width, options);
+    return options.style === "blocks" && framed ? makeUsageProgressBar(percent, width) : makeStyledBar(percent, width, options);
   }
   renderXs(item, settings, percent, usageText) {
-    const parts = [this.makeBar(item, settings, percent, 5)];
+    const width = getDisplayMode(item) === "fluid" ? fluidBarCells(item, settings) : 5;
+    const parts = [this.makeBar(item, settings, percent, width, false)].filter(Boolean);
     if (isMetadataFlagEnabled(item, "showPercent")) {
       parts.push(`${Math.round(percent)}%`);
     }
     if (isMetadataFlagEnabled(item, "showUsage")) {
       parts.push(usageText);
+    }
+    if (parts.length === 0) {
+      return "";
     }
     const display = parts.join(" ");
     return item.rawValue ? display : `Context: ${display}`;
@@ -40326,7 +40368,7 @@ class ContextBarWidget {
     const tokenFormat = resolveNumberFormat("token", item, settings);
     const percentFormat = resolveNumberFormat("percent", item, settings);
     if (context.isPreview) {
-      if (displayMode === "progress-xs") {
+      if (displayMode === "progress-xs" || displayMode === "fluid") {
         return this.renderXs(item, settings, 25, "50k/200k");
       }
       const usedDisplay = formatTokens(50000, tokenFormat, 0);
@@ -40359,7 +40401,7 @@ class ContextBarWidget {
     const usedDisplay = formatTokens(used, tokenFormat, 0);
     const totalDisplay = formatTokens(total, tokenFormat, 0);
     const percentDisplay = formatPercent(clampedPercent, percentFormat, 0);
-    if (displayMode === "progress-xs") {
+    if (displayMode === "progress-xs" || displayMode === "fluid") {
       return this.renderXs(item, settings, clampedPercent, `${Math.round(used / 1000)}k/${Math.round(total / 1000)}k`);
     }
     if (isBarSliderMode(displayMode)) {
@@ -40378,7 +40420,7 @@ class ContextBarWidget {
     if (item && !isBarSliderMode(getDisplayMode(item))) {
       keybinds.push({ key: "b", label: "(b)ar style", action: "cycle-bar-style" });
     }
-    if (item && getDisplayMode(item) === "progress-xs") {
+    if (item && ["progress-xs", "fluid"].includes(getDisplayMode(item))) {
       keybinds.push({ key: "e", label: "show p(e)rcent", action: "toggle-percent" }, { key: "u", label: "show (u)sage", action: "toggle-usage" });
     }
     return keybinds;
@@ -42025,6 +42067,9 @@ function resolveEffectiveTerminalWidth(detectedWidth, settings, context) {
   if (!detectedWidth) {
     return null;
   }
+  if (context.measureNatural) {
+    return -1;
+  }
   const flexMode = settings.flexMode;
   if (context.isPreview) {
     if (flexMode === "full") {
@@ -42541,8 +42586,26 @@ function applyMergeTargetHidingToSegment(segment) {
     }
   }
 }
+function sizeFluidBars(widgets, line, width, settings, context) {
+  const measured = line.map((entry) => ({ ...entry }));
+  applyMergeTargetHiding(measured);
+  const bars = line.map((entry, i) => ({ entry, shown: Boolean(measured[i]?.content) })).filter(({ entry, shown }) => shown && isFluidBar(entry.widget)).map(({ entry }) => entry);
+  if (bars.length === 0) {
+    return;
+  }
+  const natural = getVisibleWidth(renderStatusLine(widgets, settings, { ...context, terminalWidth: 1, measureNatural: true }, measured, calculateMaxWidthsFromPreRendered([measured], settings)));
+  const specs = bars.map(({ widget }) => ({ max: resolveFluidLimits(widget, settings).max, overhead: barOverhead(widget, settings) }));
+  const barSpace = specs.reduce((sum, spec) => sum + (spec.max > 0 ? spec.max + spec.overhead : 0), 0);
+  const cells = allocateFluidCells(width - (natural - barSpace), specs);
+  bars.forEach((entry, i) => {
+    const base = context.minimalist ? { ...entry.widget, rawValue: true } : entry.widget;
+    entry.content = getWidget(entry.widget.type)?.render(withFluidCells(base, cells[i] ?? 0), context, settings) ?? "";
+    entry.plainLength = getVisibleWidth(entry.content);
+  });
+}
 function preRenderAllWidgets(allLinesWidgets, settings, context) {
   const preRenderedLines = [];
+  const fluidWidth = allLinesWidgets.some((line) => line.some(isFluidBar)) ? resolveEffectiveTerminalWidth(context.terminalWidth ?? getTerminalWidth(), settings, context) : null;
   for (const lineWidgets of allLinesWidgets) {
     const preRenderedLine = [];
     for (const widget of lineWidgets) {
@@ -42563,7 +42626,8 @@ function preRenderAllWidgets(allLinesWidgets, settings, context) {
         });
         continue;
       }
-      const effectiveWidget = context.minimalist ? { ...widget, rawValue: true } : widget;
+      const baseWidget = context.minimalist ? { ...widget, rawValue: true } : widget;
+      const effectiveWidget = fluidWidth && isFluidBar(widget) ? withFluidCells(baseWidget, resolveFluidLimits(widget, settings).max) : baseWidget;
       const widgetText = widgetImpl.render(effectiveWidget, context, settings) ?? "";
       const plainLength = getVisibleWidth(widgetText);
       preRenderedLine.push({
@@ -42571,6 +42635,9 @@ function preRenderAllWidgets(allLinesWidgets, settings, context) {
         plainLength,
         widget
       });
+    }
+    if (fluidWidth) {
+      sizeFluidBars(lineWidgets, preRenderedLine, fluidWidth, settings, context);
     }
     applyMergeTargetHiding(preRenderedLine);
     preRenderedLines.push(preRenderedLine);
