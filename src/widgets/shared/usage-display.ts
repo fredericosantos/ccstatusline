@@ -1,3 +1,5 @@
+import type { BarStyle } from '../../types/BarStyle';
+import { BAR_STYLES } from '../../types/BarStyle';
 import type {
     CustomKeybind,
     HideableState,
@@ -26,6 +28,7 @@ const SLIDER_WIDTH = 10;
 const PROGRESS_TOGGLE_KEYBIND: CustomKeybind = { key: 'p', label: '(p)rogress toggle', action: 'toggle-progress' };
 const INVERT_TOGGLE_KEYBIND: CustomKeybind = { key: 'v', label: 'in(v)ert fill', action: 'toggle-invert' };
 const PERCENT_TOGGLE_KEYBIND: CustomKeybind = { key: 'e', label: 'show p(e)rcent', action: 'toggle-percent' };
+const BAR_STYLE_KEYBIND: CustomKeybind = { key: 'b', label: '(b)ar style', action: 'cycle-bar-style' };
 const COMPACT_TOGGLE_KEYBIND: CustomKeybind = { key: 's', label: '(s)hort time', action: 'toggle-compact' };
 const CURSOR_TOGGLE_KEYBIND: CustomKeybind = { key: 't', label: '(t)ime cursor', action: 'toggle-cursor' };
 const DATE_TOGGLE_KEYBIND: CustomKeybind = { key: 't', label: '(t)imestamp', action: 'toggle-date' };
@@ -91,12 +94,22 @@ export function toggleUsagePercent(item: WidgetItem): WidgetItem {
     return toggleMetadataFlag(item, 'showPercent');
 }
 
-// The xs bar is bracket-less and shows its percent only when showPercent is set
-export function formatUsageProgress(item: WidgetItem, mode: UsageDisplayMode, bar: string, percentText: string): string {
+// The xs bar is bracket-less and shows its percent only when showPercent is set.
+// Only the blocks style keeps its brackets on the longer bars; the other styles frame themselves.
+export function formatUsageProgress(item: WidgetItem, mode: UsageDisplayMode, bar: string, percentText: string, style: BarStyle = 'blocks'): string {
     if (mode === 'progress-xs') {
         return isUsagePercentShown(item) ? `${bar} ${percentText}` : bar;
     }
-    return `[${bar}] ${percentText}`;
+    return style === 'blocks' ? `[${bar}] ${percentText}` : `${bar} ${percentText}`;
+}
+
+// Cycles the per-widget override: global style -> dots -> pill -> line -> blocks -> global style
+export function cycleBarStyle(item: WidgetItem): WidgetItem {
+    const order: (BarStyle | undefined)[] = [undefined, ...BAR_STYLES];
+    const next = order[(order.findIndex(style => style === item.metadata?.barStyle) + 1) % order.length];
+    return next
+        ? { ...item, metadata: { ...item.metadata, barStyle: next } }
+        : removeMetadataKeys(item, ['barStyle']);
 }
 
 export function isUsageInverted(item: WidgetItem): boolean {
@@ -226,6 +239,10 @@ export function getUsageDisplayModifierText(
         modifiers.push('inverted');
     }
 
+    if (isUsageProgressMode(mode) && item.metadata?.barStyle) {
+        modifiers.push(`${item.metadata.barStyle} style`);
+    }
+
     if (isUsageCursorEnabled(item) && (isUsageProgressMode(mode) || isUsageSliderMode(mode))) {
         modifiers.push('time cursor');
     }
@@ -315,6 +332,10 @@ export function getUsagePercentCustomKeybinds(item?: WidgetItem, includeCursor =
         }
     }
 
+    if (item && isUsageProgressMode(getUsageDisplayMode(item))) {
+        keybinds.push(BAR_STYLE_KEYBIND);
+    }
+
     return keybinds;
 }
 
@@ -339,6 +360,9 @@ export function getUsageTimerCustomKeybinds(
         keybinds.push(INVERT_TOGGLE_KEYBIND);
         if (mode === 'progress-xs') {
             keybinds.push(PERCENT_TOGGLE_KEYBIND);
+        }
+        if (isUsageProgressMode(mode)) {
+            keybinds.push(BAR_STYLE_KEYBIND);
         }
     } else {
         keybinds.push(COMPACT_TOGGLE_KEYBIND);

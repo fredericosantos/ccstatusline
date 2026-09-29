@@ -135,6 +135,19 @@ export function applyParensDim(text: string, bold?: boolean): string {
     return text.replace(/\([^()]*\)/g, span => `\x1b[2m${span}${intensityReset}`);
 }
 
+// Widgets that colour part of their own output (progress bars) close it with a bare
+// fg/bg reset. Re-open the surrounding colours after each so the text that follows keeps them.
+export function reopenOuterColors(text: string, fgCode: string, bgCode: string): string {
+    let out = text;
+    if (fgCode) {
+        out = out.split('\x1b[39m').join('\x1b[39m' + fgCode);
+    }
+    if (bgCode) {
+        out = out.split('\x1b[49m').join('\x1b[49m' + bgCode);
+    }
+    return out;
+}
+
 export function applyColors(
     text: string,
     foregroundColor?: string,
@@ -153,6 +166,8 @@ export function applyColors(
     // This avoids style leakage (for example, bold affecting later widgets).
     let prefix = '';
     let suffix = '';
+    let outerFg = '';
+    let outerBg = '';
 
     // Apply bold/dim first so they can be reset independently before color
     // resets. A single \x1b[22m clears both attributes.
@@ -172,6 +187,7 @@ export function applyColors(
         if (bgCode) {
             prefix += bgCode;
             suffix = '\x1b[49m' + suffix;
+            outerBg = bgCode;
         }
     }
 
@@ -191,10 +207,11 @@ export function applyColors(
         if (fgCode) {
             prefix += fgCode;
             suffix = '\x1b[39m' + suffix;
+            outerFg = fgCode;
         }
     }
 
-    return prefix + styledText + suffix;
+    return prefix + reopenOuterColors(styledText, outerFg, outerBg) + suffix;
 }
 
 // Get raw ANSI codes for a color without the reset codes

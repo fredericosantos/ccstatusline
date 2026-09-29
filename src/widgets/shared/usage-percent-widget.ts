@@ -23,15 +23,14 @@ import {
 import type { UsageWindowMetrics } from '../../utils/usage-types';
 
 import { isHidden } from './hideable';
-import { makeTimerProgressBar } from './progress-bar';
+import { renderUsageBar } from './progress-bar';
 import { formatRawOrLabeledValue } from './raw-or-labeled';
 import {
     USAGE_NO_DATA_HIDEABLE_STATE,
+    cycleBarStyle,
     cycleUsageDisplayMode,
-    formatUsageProgress,
     getUsageDisplayMode,
     getUsageDisplayModifierText,
-    getUsageProgressBarWidth,
     isUsageCursorEnabled,
     isUsageInverted,
     isUsageProgressMode,
@@ -114,6 +113,7 @@ function resolveUsageWindow(kind: UsagePercentWidgetKind, data: RenderUsageData,
 
 function renderUsageDisplay(
     item: WidgetItem,
+    settings: Settings,
     label: string,
     percent: number,
     format: NumberFormat,
@@ -122,9 +122,7 @@ function renderUsageDisplay(
     const displayMode = getUsageDisplayMode(item);
 
     if (isUsageProgressMode(displayMode)) {
-        const width = getUsageProgressBarWidth(displayMode);
-        const progressBar = makeTimerProgressBar(percent, width, getCursorOptions());
-        const progressDisplay = formatUsageProgress(item, displayMode, progressBar, formatPercent(percent, format));
+        const progressDisplay = renderUsageBar(item, settings, displayMode, percent, formatPercent(percent, format), { escalate: true, cursor: getCursorOptions() });
         return formatRawOrLabeledValue(item, label, progressDisplay);
     }
 
@@ -153,6 +151,10 @@ export function getUsagePercentWidgetEditorDisplay(kind: UsagePercentWidgetKind,
 }
 
 export function handleUsagePercentWidgetEditorAction(action: string, item: WidgetItem): WidgetItem | null {
+    if (action === 'cycle-bar-style') {
+        return cycleBarStyle(item);
+    }
+
     if (action === 'toggle-progress') {
         return cycleUsageDisplayMode(item, [], true, true);
     }
@@ -185,7 +187,7 @@ export function renderUsagePercentWidgetValue(
 
     if (context.isPreview) {
         const renderedPercent = inverted ? 100 - config.previewPercent : config.previewPercent;
-        return renderUsageDisplay(item, config.label, renderedPercent, format, () => showCursor ? { cursorPercent: 50 } : undefined);
+        return renderUsageDisplay(item, settings, config.label, renderedPercent, format, () => showCursor ? { cursorPercent: 50 } : undefined);
     }
 
     const data: RenderUsageData = context.usageData ?? {};
@@ -202,7 +204,7 @@ export function renderUsagePercentWidgetValue(
     const percent = Math.max(0, Math.min(100, usagePercent));
     const renderedPercent = inverted ? 100 - percent : percent;
 
-    return renderUsageDisplay(item, config.label, renderedPercent, format, () => {
+    return renderUsageDisplay(item, settings, config.label, renderedPercent, format, () => {
         if (!showCursor) {
             return undefined;
         }

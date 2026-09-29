@@ -26,7 +26,7 @@ import {
     LOCALE_EDITOR_ACTION,
     renderUsageLocaleEditor
 } from './shared/locale-editor';
-import { makeTimerProgressBar } from './shared/progress-bar';
+import { renderUsageBar } from './shared/progress-bar';
 import { formatRawOrLabeledValue } from './shared/raw-or-labeled';
 import {
     TIMEZONE_EDITOR_ACTION,
@@ -34,12 +34,11 @@ import {
 } from './shared/timezone-editor';
 import {
     USAGE_NO_DATA_HIDEABLE_STATE,
+    cycleBarStyle,
     cycleUsageDisplayMode,
-    formatUsageProgress,
     getUsageDisplayMode,
     getUsageDisplayModifierText,
     getUsageLocale,
-    getUsageProgressBarWidth,
     getUsageTimerCustomKeybinds,
     getUsageTimezone,
     isUsage12HourClock,
@@ -77,6 +76,10 @@ export class BlockResetTimerWidget implements Widget {
     }
 
     handleEditorAction(action: string, item: WidgetItem): WidgetItem | null {
+        if (action === 'cycle-bar-style') {
+            return cycleBarStyle(item);
+        }
+
         if (action === 'toggle-progress') {
             return cycleUsageDisplayMode(item, ['compact', 'absolute'], true);
         }
@@ -115,9 +118,7 @@ export class BlockResetTimerWidget implements Widget {
             const previewPercent = inverted ? 90.0 : 10.0;
 
             if (isUsageProgressMode(displayMode)) {
-                const barWidth = getUsageProgressBarWidth(displayMode);
-                const progressBar = makeTimerProgressBar(previewPercent, barWidth);
-                return formatRawOrLabeledValue(item, 'Reset ', formatUsageProgress(item, displayMode, progressBar, formatPercent(previewPercent, format)));
+                return formatRawOrLabeledValue(item, 'Reset ', renderUsageBar(item, settings, displayMode, previewPercent, formatPercent(previewPercent, format)));
             }
 
             if (isUsageSliderMode(displayMode)) {
@@ -158,10 +159,8 @@ export class BlockResetTimerWidget implements Widget {
         }
 
         if (isUsageProgressMode(displayMode)) {
-            const barWidth = getUsageProgressBarWidth(displayMode);
             const percent = inverted ? window.remainingPercent : window.elapsedPercent;
-            const progressBar = makeTimerProgressBar(percent, barWidth);
-            return formatRawOrLabeledValue(item, 'Reset ', formatUsageProgress(item, displayMode, progressBar, formatPercent(percent, format)));
+            return formatRawOrLabeledValue(item, 'Reset ', renderUsageBar(item, settings, displayMode, percent, formatPercent(percent, format)));
         }
 
         if (isUsageSliderMode(displayMode)) {

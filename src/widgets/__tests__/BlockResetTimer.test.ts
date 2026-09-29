@@ -327,7 +327,8 @@ describe('BlockResetTimerWidget', () => {
         expectedModifierText: '(medium bar, inverted)',
         expectedProgressKeybinds: [
             { key: 'p', label: '(p)rogress toggle', action: 'toggle-progress' },
-            { key: 'v', label: 'in(v)ert fill', action: 'toggle-invert' }
+            { key: 'v', label: 'in(v)ert fill', action: 'toggle-invert' },
+            { key: 'b', label: '(b)ar style', action: 'cycle-bar-style' }
         ],
         modifierItem: {
             id: 'reset',

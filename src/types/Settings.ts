@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { BarStyleSchema } from './BarStyle';
 import { ColorLevelSchema } from './ColorLevel';
 import { FlexModeSchema } from './FlexMode';
 import { GlobalNumberFormatSchema } from './NumberFormat';
@@ -74,6 +75,8 @@ export const SettingsSchema = z.object({
     overrideBackgroundColor: z.string().optional(),
     overrideForegroundColor: z.string().optional(),
     globalBold: z.boolean().default(false),
+    // Look of every progress bar (dots when unset); a widget can override it with metadata.barStyle
+    progressBarStyle: BarStyleSchema.optional(),
     numberFormat: GlobalNumberFormatSchema.optional(),
     gitCacheTtlSeconds: z.number().min(0).max(60).default(5),
     // How long a "no TTY" result is reused for the same session, in seconds.

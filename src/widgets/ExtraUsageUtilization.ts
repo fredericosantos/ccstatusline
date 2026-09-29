@@ -15,16 +15,15 @@ import { getUsageErrorMessage } from '../utils/usage';
 
 import { EXTRA_USAGE_DISABLED_HIDEABLE_STATE } from './shared/extra-usage-disabled';
 import { isHidden } from './shared/hideable';
-import { makeTimerProgressBar } from './shared/progress-bar';
+import { renderUsageBar } from './shared/progress-bar';
 import { formatRawOrLabeledValue } from './shared/raw-or-labeled';
 import {
     USAGE_NO_DATA_HIDEABLE_STATE,
+    cycleBarStyle,
     cycleUsageDisplayMode,
-    formatUsageProgress,
     getUsageDisplayMode,
     getUsageDisplayModifierText,
     getUsagePercentCustomKeybinds,
-    getUsageProgressBarWidth,
     isUsageInverted,
     isUsageProgressMode,
     isUsageSliderMode,
@@ -51,6 +50,10 @@ export class ExtraUsageUtilizationWidget implements Widget {
     }
 
     handleEditorAction(action: string, item: WidgetItem): WidgetItem | null {
+        if (action === 'cycle-bar-style') {
+            return cycleBarStyle(item);
+        }
+
         if (action === 'toggle-progress') {
             return cycleUsageDisplayMode(item, [], true, true);
         }
@@ -76,9 +79,7 @@ export class ExtraUsageUtilizationWidget implements Widget {
             const renderedPercent = inverted ? 100 - previewPercent : previewPercent;
 
             if (isUsageProgressMode(displayMode)) {
-                const width = getUsageProgressBarWidth(displayMode);
-                const progressBar = makeTimerProgressBar(renderedPercent, width);
-                return formatRawOrLabeledValue(item, 'Overage: ', formatUsageProgress(item, displayMode, progressBar, formatPercent(renderedPercent, format)));
+                return formatRawOrLabeledValue(item, 'Overage: ', renderUsageBar(item, settings, displayMode, renderedPercent, formatPercent(renderedPercent, format), { escalate: true }));
             }
 
             if (isUsageSliderMode(displayMode)) {
@@ -110,9 +111,7 @@ export class ExtraUsageUtilizationWidget implements Widget {
         const renderedPercent = inverted ? 100 - percent : percent;
 
         if (isUsageProgressMode(displayMode)) {
-            const width = getUsageProgressBarWidth(displayMode);
-            const progressBar = makeTimerProgressBar(renderedPercent, width);
-            return formatRawOrLabeledValue(item, 'Overage: ', formatUsageProgress(item, displayMode, progressBar, formatPercent(renderedPercent, format)));
+            return formatRawOrLabeledValue(item, 'Overage: ', renderUsageBar(item, settings, displayMode, renderedPercent, formatPercent(renderedPercent, format), { escalate: true }));
         }
 
         if (isUsageSliderMode(displayMode)) {

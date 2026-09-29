@@ -17,14 +17,13 @@ import {
 } from '../utils/usage';
 
 import { isHidden } from './shared/hideable';
-import { makeTimerProgressBar } from './shared/progress-bar';
+import { renderUsageBar } from './shared/progress-bar';
 import { formatRawOrLabeledValue } from './shared/raw-or-labeled';
 import {
+    cycleBarStyle,
     cycleUsageDisplayMode,
-    formatUsageProgress,
     getUsageDisplayMode,
     getUsageDisplayModifierText,
-    getUsageProgressBarWidth,
     getUsageTimerCustomKeybinds,
     isUsageCompact,
     isUsageInverted,
@@ -52,6 +51,10 @@ export class BlockTimerWidget implements Widget {
     }
 
     handleEditorAction(action: string, item: WidgetItem): WidgetItem | null {
+        if (action === 'cycle-bar-style') {
+            return cycleBarStyle(item);
+        }
+
         if (action === 'toggle-progress') {
             return cycleUsageDisplayMode(item, ['compact'], true);
         }
@@ -81,9 +84,7 @@ export class BlockTimerWidget implements Widget {
             const previewPercent = inverted ? 26.1 : 73.9;
 
             if (isUsageProgressMode(displayMode)) {
-                const barWidth = getUsageProgressBarWidth(displayMode);
-                const progressBar = makeTimerProgressBar(previewPercent, barWidth);
-                return formatRawOrLabeledValue(item, 'Block ', formatUsageProgress(item, displayMode, progressBar, formatPercent(previewPercent, format)));
+                return formatRawOrLabeledValue(item, 'Block ', renderUsageBar(item, settings, displayMode, previewPercent, formatPercent(previewPercent, format)));
             }
 
             if (isUsageSliderMode(displayMode)) {
@@ -107,9 +108,7 @@ export class BlockTimerWidget implements Widget {
 
             const emptyPercent = formatPercent(0, format);
             if (isUsageProgressMode(displayMode)) {
-                const barWidth = getUsageProgressBarWidth(displayMode);
-                const emptyBar = '░'.repeat(barWidth);
-                return formatRawOrLabeledValue(item, 'Block ', formatUsageProgress(item, displayMode, emptyBar, emptyPercent));
+                return formatRawOrLabeledValue(item, 'Block ', renderUsageBar(item, settings, displayMode, 0, emptyPercent));
             }
 
             if (isUsageSliderMode(displayMode)) {
@@ -124,10 +123,8 @@ export class BlockTimerWidget implements Widget {
         }
 
         if (isUsageProgressMode(displayMode)) {
-            const barWidth = getUsageProgressBarWidth(displayMode);
             const percent = inverted ? window.remainingPercent : window.elapsedPercent;
-            const progressBar = makeTimerProgressBar(percent, barWidth);
-            return formatRawOrLabeledValue(item, 'Block ', formatUsageProgress(item, displayMode, progressBar, formatPercent(percent, format)));
+            return formatRawOrLabeledValue(item, 'Block ', renderUsageBar(item, settings, displayMode, percent, formatPercent(percent, format)));
         }
 
         if (isUsageSliderMode(displayMode)) {

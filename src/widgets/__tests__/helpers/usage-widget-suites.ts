@@ -60,7 +60,8 @@ const EXPECTED_TIMER_TIME_KEYBINDS: CustomKeybind[] = [
 
 const EXPECTED_TIMER_PROGRESS_KEYBINDS: CustomKeybind[] = [
     { key: 'p', label: '(p)rogress toggle', action: 'toggle-progress' },
-    { key: 'v', label: 'in(v)ert fill', action: 'toggle-invert' }
+    { key: 'v', label: 'in(v)ert fill', action: 'toggle-invert' },
+    { key: 'b', label: '(b)ar style', action: 'cycle-bar-style' }
 ];
 
 function getUsageContext(field: 'sessionUsage' | 'weeklyUsage' | 'weeklySonnetUsage' | 'weeklyOpusUsage' | 'fableUsage', value: number): RenderContext {
@@ -76,6 +77,10 @@ function getExpectedUsageKeybinds(item: WidgetItem, includeCursor = false): Cust
 
     if (includeCursor) {
         keybinds.push({ key: 't', label: '(t)ime cursor', action: 'toggle-cursor' });
+    }
+
+    if (item.metadata?.display?.startsWith('progress')) {
+        keybinds.push({ key: 'b', label: '(b)ar style', action: 'cycle-bar-style' });
     }
 
     return keybinds;

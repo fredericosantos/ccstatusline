@@ -81,7 +81,8 @@ describe('ExtraUsageUtilizationWidget', () => {
             metadata: { display: 'progress' }
         })).toEqual([
             { key: 'p', label: '(p)rogress toggle', action: 'toggle-progress' },
-            { key: 'u', label: '(u) show remaining', action: 'toggle-invert' }
+            { key: 'u', label: '(u) show remaining', action: 'toggle-invert' },
+            { key: 'b', label: '(b)ar style', action: 'cycle-bar-style' }
         ]);
         expect(widget.getCustomKeybinds({
             ...baseItem,

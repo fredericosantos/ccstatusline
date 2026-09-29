@@ -204,7 +204,7 @@ describe('ContextBarWidget', () => {
 
             expect(on?.metadata?.showPercent).toBe('true');
             expect(usage?.metadata?.showUsage).toBe('true');
-            expect(widget.getCustomKeybinds(xs()).map(k => k.action)).toEqual(['toggle-progress', 'toggle-percent', 'toggle-usage']);
+            expect(widget.getCustomKeybinds(xs()).map(k => k.action)).toEqual(['toggle-progress', 'cycle-bar-style', 'toggle-percent', 'toggle-usage']);
         });
     });
 

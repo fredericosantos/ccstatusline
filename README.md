@@ -307,6 +307,29 @@
 
 <br />
 
+## 🟠 Progress Bar Styles
+
+Progress-bar widgets (session / weekly / extra usage, block timer, block and weekly reset, context bar) draw their bars in one of four styles, in the Claude palette (orange fill on a warm-gray track):
+
+| Style | Look | Notes |
+| --- | --- | --- |
+| `dots` (default) | `●●●●●` | filled dots plus one dot blended between track and fill |
+| `pill` | rounded caps, fill advancing in eighths of a cell | needs a Powerline / Nerd Font for the caps (2 extra cells) |
+| `line` | `━━╸━━` | rich-style heavy line with a half-cell edge |
+| `blocks` | `█░` | the classic bar; keeps its `[ ]` brackets on the long and medium bars |
+
+Set the style for every bar in `~/.config/ccstatusline/settings.json`:
+
+```json
+{ "progressBarStyle": "pill" }
+```
+
+Override it for one widget with `"metadata": { "barStyle": "line" }`, or press `b` in the widget editor to cycle it (widget override → dots → pill → line → blocks → back to the global style).
+
+Consumption widgets (session, weekly and extra usage, context bar) turn amber at 75% used and red at 90%. Timers keep the plain fill colour. Set `"metadata": { "escalate": "false" }` on a widget to turn escalation off. With `colorLevel: 0` every bar falls back to `blocks`. Hex colours are downgraded to the configured colour level, so `colorLevel: 3` renders the palette exactly.
+
+<br />
+
 ## 🌐 Localizations
 
 The localizations in this section are third-party forks maintained outside this repository. They are not maintained, reviewed, or endorsed by this repository, so review their code and releases before using them.
