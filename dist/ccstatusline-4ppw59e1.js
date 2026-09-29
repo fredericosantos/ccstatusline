@@ -24059,6 +24059,10 @@ function open2(hex) {
   const styled = source_default.hex(hex)("x");
   return styled.slice(0, styled.indexOf("x"));
 }
+function openBg(hex) {
+  const styled = source_default.bgHex(hex)("x");
+  return styled.slice(0, styled.indexOf("x"));
+}
 function blend(from, to, ratio) {
   const channel = (hex, at) => parseInt(hex.slice(at, at + 2), 16);
   return "#" + [1, 3, 5].map((at) => Math.round(channel(from, at) + (channel(to, at) - channel(from, at)) * ratio).toString(16).padStart(2, "0")).join("");
@@ -24178,6 +24182,15 @@ function makePaceBar(usedPercent, elapsedPercent, width, options) {
 }
 function colorText(text, hex) {
   return source_default.level === 0 || !text ? text : `${open2(hex)}${text}${FG_OFF}`;
+}
+function filledPill(text, fill, textColor) {
+  if (source_default.level === 0) {
+    return `(${text.replace(/\x1b\[[0-9;]*m/g, "")})`;
+  }
+  return `${open2(fill)}${FG_OFF}${openBg(fill)}${open2(textColor)}${text}${FG_OFF}\x1B[49m${open2(fill)}${FG_OFF}`;
+}
+function blendHex(from, to, ratio) {
+  return blend(from, to, ratio);
 }
 function dimText(item, settings, text) {
   if (!text || source_default.level === 0) {
@@ -34386,7 +34399,7 @@ async function saveSettings(settings) {
   };
   await writeSettingsJson(settingsWithVersion, paths);
   try {
-    const { syncWidgetHooks } = await import("./hooks-xyy92mmz.js");
+    const { syncWidgetHooks } = await import("./hooks-qrh818vs.js");
     await syncWidgetHooks(settings);
   } catch {}
 }
@@ -34759,7 +34772,7 @@ async function installStatusLine({
   }
   const savedSettings = await loadSavedSettingsForHookSync();
   if (savedSettings) {
-    const { syncWidgetHooks } = await import("./hooks-xyy92mmz.js");
+    const { syncWidgetHooks } = await import("./hooks-qrh818vs.js");
     await syncWidgetHooks(savedSettings);
   }
 }
@@ -34777,7 +34790,7 @@ async function uninstallStatusLine() {
   }
   await saveInstallationMetadata(undefined);
   try {
-    const { removeManagedHooks } = await import("./hooks-xyy92mmz.js");
+    const { removeManagedHooks } = await import("./hooks-qrh818vs.js");
     await removeManagedHooks();
   } catch {}
 }
@@ -39398,12 +39411,16 @@ May be incorrect when multiple Claude Code sessions are running due to current C
 }
 
 // src/widgets/ModelEffort.ts
+var PILL_FILL = "#D97757";
+var PILL_TEXT = "#FFFFFF";
+
 class ModelEffortWidget {
   getDefaultColor() {
     return "white";
   }
   getDescription() {
-    return `Model name and thinking effort in one unit, e.g. (Sonnet|high).
+    return `Model name and thinking effort in one unit, e.g. (Sonnet|high), or with pill = true a filled capsule.
+` + `pill = true draws a filled capsule (fillColor default Claude orange, textColor default white, separator default •, padding 1).
 ` + 'Metadata: open / close (default "(" ")"), separator (default "|"), caps = rounded for Powerline caps, showMedium = true to show medium effort, shortName = true for the first word only.';
   }
   getDisplayName() {
@@ -39422,6 +39439,15 @@ class ModelEffortWidget {
       return null;
     }
     const effort = context.isPreview ? "high" : getEffortLabel(context, meta?.showMedium === "true");
+    if (meta?.pill === "true") {
+      const fill = resolveBarColor(meta.fillColor, PILL_FILL);
+      const text = resolveBarColor(meta.textColor, PILL_TEXT);
+      const pad = " ".repeat(Math.max(0, Math.min(3, Number.parseInt(meta.padding ?? "1", 10) || 0)));
+      const sep = blendHex(text, fill, 0.35);
+      const dot = meta.separator ?? "•";
+      const inner = colorText(name, text) + (effort ? colorText(dot, sep) + colorText(effort, text) : "");
+      return filledPill(`${pad}${inner}${pad}`, fill, text);
+    }
     const rounded = meta?.caps === "rounded";
     const dim = (text) => dimText(item, settings, text);
     return dim(rounded ? "" : meta?.open ?? "(") + name + (effort ? dim(meta?.separator ?? "|") + effort : "") + dim(rounded ? "" : meta?.close ?? ")");

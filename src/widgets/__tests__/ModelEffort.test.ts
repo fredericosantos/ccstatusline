@@ -34,6 +34,34 @@ describe('ModelEffortWidget', () => {
         updateColorMap();
     });
 
+    describe('pill', () => {
+        const pill = { pill: 'true', shortName: 'true' };
+
+        it('draws rounded caps around orange-backed white text with a dot separator', () => {
+            const out = render(pill, context('high')) ?? '';
+            expect(strip(out)).toBe('\ue0b6 Sonnet\u2022high \ue0b4');
+            expect(out.startsWith('\x1b[38;2;217;119;87m\ue0b6\x1b[39m\x1b[48;2;217;119;87m')).toBe(true);
+            expect(out).toContain('\x1b[38;2;255;255;255mSonnet\x1b[39m');
+            expect(out.endsWith('\x1b[49m\x1b[38;2;217;119;87m\ue0b4\x1b[39m')).toBe(true);
+        });
+
+        it('leaves out the effort and its dot when unset or medium', () => {
+            expect(strip(render(pill, context()) ?? '')).toBe('\ue0b6 Sonnet \ue0b4');
+        });
+
+        it('takes custom colours, separator and padding, and reports a correct width', () => {
+            const out = render({ ...pill, fillColor: '#112233', textColor: '#ffeedd', separator: '/', padding: '0' }, context('low')) ?? '';
+            expect(strip(out)).toBe('\ue0b6Sonnet/low\ue0b4');
+            expect(out).toContain('\x1b[48;2;17;34;51m');
+            expect(getVisibleWidth(out)).toBe(getVisibleWidth(strip(out)));
+        });
+
+        it('falls back to plain parentheses without colour support', () => {
+            chalk.level = 0;
+            expect(render(pill, context('high'))).toBe('( Sonnet\u2022high )');
+        });
+    });
+
     it('renders (model|effort)', () => {
         expect(strip(render(undefined, context('high')) ?? '')).toBe('(Sonnet 4.6|high)');
     });

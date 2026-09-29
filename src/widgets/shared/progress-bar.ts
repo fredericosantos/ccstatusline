@@ -64,6 +64,11 @@ function open(hex: string): string {
     return styled.slice(0, styled.indexOf('x'));
 }
 
+function openBg(hex: string): string {
+    const styled = chalk.bgHex(hex)('x');
+    return styled.slice(0, styled.indexOf('x'));
+}
+
 // Plain alpha compositing in sRGB, so "35% of the way to the fill" is literally 35% opacity
 function blend(from: string, to: string, ratio: number): string {
     const channel = (hex: string, at: number): number => parseInt(hex.slice(at, at + 2), 16);
@@ -250,6 +255,20 @@ export function makePaceBar(usedPercent: number, elapsedPercent: number, width: 
 // Text in an explicit colour (no-op without colour support)
 export function colorText(text: string, hex: string): string {
     return chalk.level === 0 || !text ? text : `${open(hex)}${text}${FG_OFF}`;
+}
+
+// Filled capsule: rounded Powerline caps in the fill colour around text on a fill-coloured background.
+// `text` may carry its own colours; `textColor` is the colour it starts in. Plain "(text)" without colour support.
+export function filledPill(text: string, fill: string, textColor: string): string {
+    if (chalk.level === 0) {
+        return `(${text.replace(/\x1b\[[0-9;]*m/g, '')})`;
+    }
+    return `${open(fill)}\ue0b6${FG_OFF}${openBg(fill)}${open(textColor)}${text}${FG_OFF}\x1b[49m${open(fill)}\ue0b4${FG_OFF}`;
+}
+
+// A colour part-way from `from` to `to` (0..1), for dimming text against its background
+export function blendHex(from: string, to: string, ratio: number): string {
+    return blend(from, to, ratio);
 }
 
 export function dimText(item: WidgetItem, settings: Settings, text: string): string {
