@@ -21,6 +21,8 @@ import { makeModifierText } from './shared/editor-display';
 import { isHidden } from './shared/hideable';
 import {
     barOptionsFor,
+    colorText,
+    dimText,
     escalatePercentText,
     fluidBarCells,
     makePaceBar,
@@ -62,18 +64,21 @@ const getDisplay = (item: WidgetItem): UsageDisplayMode => {
     return isUsageProgressMode(mode) ? mode : 'progress-xs';
 };
 
-// Text after the bar: usage percent, usage/elapsed, or the signed gap in points. Coloured by progressTextEscalation
-// from the usage share, like the other consumption bars.
+// Text after the bar: usage percent, usage/elapsed, or the signed gap in points. Usage is coloured by
+// progressTextEscalation (from the usage share); in 'both' the elapsed share takes the time colour so the text
+// matches the bar.
 function paceText(item: WidgetItem, settings: Settings, used: number, elapsed: number | undefined): string {
     const mode = getTextMode(item);
     if (mode === 'none') {
         return '';
     }
-    const gap = Math.round(used - (elapsed ?? used));
-    const text = elapsed === undefined || mode === 'usage'
+    const usage = escalatePercentText(item, settings, elapsed === undefined || mode === 'usage'
         ? formatPercent(used, resolveNumberFormat('percent', item, settings))
-        : mode === 'both' ? `${Math.round(used)}/${Math.round(elapsed)}%` : gap > 0 ? `+${gap}` : `${gap}`;
-    return escalatePercentText(item, settings, text, used, true);
+        : mode === 'both' ? `${Math.round(used)}%` : `${Math.round(used - elapsed) > 0 ? '+' : ''}${Math.round(used - elapsed)}`, used, true);
+    if (elapsed === undefined || mode !== 'both') {
+        return usage;
+    }
+    return `${usage}${dimText(item, settings, '/')}${colorText(`${Math.round(elapsed)}%`, resolvePaceColors(item, settings).time)}`;
 }
 
 class PaceWidget implements Widget {

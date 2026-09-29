@@ -247,6 +247,11 @@ export function makePaceBar(usedPercent: number, elapsedPercent: number, width: 
 }
 
 // Dims a delimiter with the track colour; plain text when there is no colour support
+// Text in an explicit colour (no-op without colour support)
+export function colorText(text: string, hex: string): string {
+    return chalk.level === 0 || !text ? text : `${open(hex)}${text}${FG_OFF}`;
+}
+
 export function dimText(item: WidgetItem, settings: Settings, text: string): string {
     if (!text || chalk.level === 0) {
         return text;

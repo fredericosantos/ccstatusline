@@ -162,8 +162,13 @@ describe('pace bars', () => {
             expect(strip(widget.render(item(), sessionContext(70, 40), settings()) ?? '')).toBe('5h ●●●●● 70.0%');
         });
 
+        it('colours the elapsed share with the time colour in both mode', () => {
+            const out = widget.render(item({ ...display, text: 'both' }), sessionContext(70, 40), settings()) ?? '';
+            expect(out).toContain('\x1b[38;2;106;155;204m40%\x1b[39m');
+        });
+
         it('supports every text mode', () => {
-            expect(strip(widget.render(item({ ...display, text: 'both' }), sessionContext(70, 40), settings()) ?? '')).toBe('5h ●●●●● 70/40%');
+            expect(strip(widget.render(item({ ...display, text: 'both' }), sessionContext(70, 40), settings()) ?? '')).toBe('5h ●●●●● 70%/40%');
             expect(strip(widget.render(item({ ...display, text: 'delta' }), sessionContext(70, 40), settings()) ?? '')).toBe('5h ●●●●● +30');
             expect(strip(widget.render(item({ ...display, text: 'delta' }), sessionContext(20, 60), settings()) ?? '')).toBe('5h ●●●●● -40');
             expect(strip(widget.render(item({ ...display, text: 'delta' }), sessionContext(40, 40), settings()) ?? '')).toBe('5h ●●●●● 0');

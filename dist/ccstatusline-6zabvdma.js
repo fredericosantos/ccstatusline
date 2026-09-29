@@ -24176,6 +24176,9 @@ function makePaceBar(usedPercent, elapsedPercent, width, options) {
     return `${open2(color)}${symbol}`;
   }).join("") + FG_OFF;
 }
+function colorText(text, hex) {
+  return source_default.level === 0 || !text ? text : `${open2(hex)}${text}${FG_OFF}`;
+}
 function dimText(item, settings, text) {
   if (!text || source_default.level === 0) {
     return text;
@@ -34383,7 +34386,7 @@ async function saveSettings(settings) {
   };
   await writeSettingsJson(settingsWithVersion, paths);
   try {
-    const { syncWidgetHooks } = await import("./hooks-6gtgfryr.js");
+    const { syncWidgetHooks } = await import("./hooks-xyy92mmz.js");
     await syncWidgetHooks(settings);
   } catch {}
 }
@@ -34756,7 +34759,7 @@ async function installStatusLine({
   }
   const savedSettings = await loadSavedSettingsForHookSync();
   if (savedSettings) {
-    const { syncWidgetHooks } = await import("./hooks-6gtgfryr.js");
+    const { syncWidgetHooks } = await import("./hooks-xyy92mmz.js");
     await syncWidgetHooks(savedSettings);
   }
 }
@@ -34774,7 +34777,7 @@ async function uninstallStatusLine() {
   }
   await saveInstallationMetadata(undefined);
   try {
-    const { removeManagedHooks } = await import("./hooks-6gtgfryr.js");
+    const { removeManagedHooks } = await import("./hooks-xyy92mmz.js");
     await removeManagedHooks();
   } catch {}
 }
@@ -39224,9 +39227,11 @@ function paceText(item, settings, used, elapsed) {
   if (mode === "none") {
     return "";
   }
-  const gap = Math.round(used - (elapsed ?? used));
-  const text = elapsed === undefined || mode === "usage" ? formatPercent(used, resolveNumberFormat("percent", item, settings)) : mode === "both" ? `${Math.round(used)}/${Math.round(elapsed)}%` : gap > 0 ? `+${gap}` : `${gap}`;
-  return escalatePercentText(item, settings, text, used, true);
+  const usage = escalatePercentText(item, settings, elapsed === undefined || mode === "usage" ? formatPercent(used, resolveNumberFormat("percent", item, settings)) : mode === "both" ? `${Math.round(used)}%` : `${Math.round(used - elapsed) > 0 ? "+" : ""}${Math.round(used - elapsed)}`, used, true);
+  if (elapsed === undefined || mode !== "both") {
+    return usage;
+  }
+  return `${usage}${dimText(item, settings, "/")}${colorText(`${Math.round(elapsed)}%`, resolvePaceColors(item, settings).time)}`;
 }
 
 class PaceWidget {

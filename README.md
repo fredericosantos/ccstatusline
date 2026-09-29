@@ -403,7 +403,7 @@ A symbol that is only partly covered fades between the colours in proportion, so
 | `progressPaceColors.usage` | `usageColor` | `#D97757` | usage-only colour |
 | `progressPaceColors.time` | `timeColor` | `#6A9BCC` | time-only colour |
 | `progressPaceColors.both` | `bothColor` | `#F4F3EE` | shared colour; `"mix"` uses the average of the usage and time colours |
-| | `text` | `usage` | text after the bar: `usage` (`70.0%`), `both` (`70/40%`), `delta` (`+30`, usage minus elapsed in points) or `none` |
+| | `text` | `usage` | text after the bar: `usage` (`70.0%`), `both` (`70%/40%`), `delta` (`+30`, usage minus elapsed in points) or `none` |
 | | `label` | `5h` / `7d` | short tag before the bar; `""` hides it |
 | | `display` | `progress-xs` | `progress-xs`, `progress-short`, `progress` or `fluid` |
 
