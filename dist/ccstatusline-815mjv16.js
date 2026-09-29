@@ -24077,6 +24077,25 @@ function resolveBarStyle(item, settings) {
   const override = item.metadata?.barStyle;
   return BAR_STYLES.find((style) => style === override) ?? settings.progressBarStyle ?? "dots";
 }
+function resolveTextEscalation(settings) {
+  const raw = settings.progressTextEscalation;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw.flatMap((step) => {
+    const { at, color } = step ?? {};
+    const hex = typeof color === "string" ? resolveBarColor(color, "") : "";
+    return typeof at === "number" && Number.isFinite(at) && hex ? [{ at, color: hex }] : [];
+  }).sort((a, b) => a.at - b.at);
+}
+function escalatePercentText(item, settings, text, usedPercent, consumption) {
+  const flag = item.metadata?.textEscalation;
+  if (source_default.level === 0 || flag === "false" || flag !== "true" && !consumption) {
+    return text;
+  }
+  const color = resolveTextEscalation(settings).filter((step) => step.at <= usedPercent).pop()?.color;
+  return color ? `${open2(color)}${text}${FG_OFF}` : text;
+}
 function getBarFillColor(usedPercent, base = BAR_COLORS.fill) {
   if (usedPercent === undefined) {
     return base;
@@ -24154,11 +24173,11 @@ function allocateFluidCells(available, bars) {
   return bars.map((bar, i) => Math.min(bar.max, base + (i < extra ? 1 : 0)));
 }
 function renderUsageBar(item, settings, mode, percent, percentText, options = {}) {
-  const consumed = options.escalate === true ? isUsageInverted(item) ? 100 - percent : percent : undefined;
-  const barOptions = barOptionsFor(item, settings, consumed);
+  const used = isUsageInverted(item) ? 100 - percent : percent;
+  const barOptions = barOptionsFor(item, settings, options.escalate === true ? used : undefined);
   const width = mode === "fluid" ? fluidBarCells(item, settings) : getUsageProgressBarWidth(mode);
   const bar = makeStyledBar(percent, width, { ...barOptions, cursorPercent: options.cursor?.cursorPercent });
-  return formatUsageProgress(item, mode, bar, percentText, barOptions.style);
+  return formatUsageProgress(item, mode, bar, escalatePercentText(item, settings, percentText, used, options.escalate === true), barOptions.style);
 }
 
 // src/utils/context-window.ts
@@ -33838,6 +33857,7 @@ var SettingsSchema = object({
   progressBarTrackColor: string().optional(),
   progressBarSymbol: string().optional(),
   progressBarEscalate: boolean2().optional(),
+  progressTextEscalation: array(unknown()).optional(),
   progressBarMin: number().optional(),
   progressBarMax: number().optional(),
   numberFormat: GlobalNumberFormatSchema.optional(),
@@ -34312,7 +34332,7 @@ async function saveSettings(settings) {
   };
   await writeSettingsJson(settingsWithVersion, paths);
   try {
-    const { syncWidgetHooks } = await import("./hooks-1w6a8xk0.js");
+    const { syncWidgetHooks } = await import("./hooks-kkhged5p.js");
     await syncWidgetHooks(settings);
   } catch {}
 }
@@ -34685,7 +34705,7 @@ async function installStatusLine({
   }
   const savedSettings = await loadSavedSettingsForHookSync();
   if (savedSettings) {
-    const { syncWidgetHooks } = await import("./hooks-1w6a8xk0.js");
+    const { syncWidgetHooks } = await import("./hooks-kkhged5p.js");
     await syncWidgetHooks(savedSettings);
   }
 }
@@ -34703,7 +34723,7 @@ async function uninstallStatusLine() {
   }
   await saveInstallationMetadata(undefined);
   try {
-    const { removeManagedHooks } = await import("./hooks-1w6a8xk0.js");
+    const { removeManagedHooks } = await import("./hooks-kkhged5p.js");
     await removeManagedHooks();
   } catch {}
 }
@@ -40352,7 +40372,7 @@ class ContextBarWidget {
     const width = getDisplayMode(item) === "fluid" ? fluidBarCells(item, settings) : 5;
     const parts = [this.makeBar(item, settings, percent, width, false)].filter(Boolean);
     if (isMetadataFlagEnabled(item, "showPercent")) {
-      parts.push(`${Math.round(percent)}%`);
+      parts.push(escalatePercentText(item, settings, `${Math.round(percent)}%`, percent, true));
     }
     if (isMetadataFlagEnabled(item, "showUsage")) {
       parts.push(usageText);
@@ -40400,7 +40420,7 @@ class ContextBarWidget {
     const clampedPercent = Math.max(0, Math.min(100, percent));
     const usedDisplay = formatTokens(used, tokenFormat, 0);
     const totalDisplay = formatTokens(total, tokenFormat, 0);
-    const percentDisplay = formatPercent(clampedPercent, percentFormat, 0);
+    const percentDisplay = escalatePercentText(item, settings, formatPercent(clampedPercent, percentFormat, 0), clampedPercent, true);
     if (displayMode === "progress-xs" || displayMode === "fluid") {
       return this.renderXs(item, settings, clampedPercent, `${Math.round(used / 1000)}k/${Math.round(total / 1000)}k`);
     }

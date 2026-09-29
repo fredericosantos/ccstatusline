@@ -30,7 +30,7 @@ import {
   initConfigPath,
   loadSettings,
   saveSettings
-} from "./ccstatusline-p7ge7mh6.js";
+} from "./ccstatusline-815mjv16.js";
 import {
   advanceGlobalPowerlineThemeIndex,
   advanceGlobalSeparatorIndex
@@ -590,7 +590,7 @@ async function main() {
       const { updatemessage, ...newSettings } = settings;
       await saveSettings(newSettings);
     }
-    const { runTUI } = await import("./index-sdbgt6tm.js");
+    const { runTUI } = await import("./index-fqa1b86d.js");
     runTUI();
   }
 }
