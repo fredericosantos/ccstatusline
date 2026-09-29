@@ -1,8 +1,10 @@
 import type { RenderContext } from '../types/RenderContext';
 import type {
     CustomKeybind,
+    HideableState,
     Widget,
     WidgetEditorDisplay,
+    WidgetEditorProps,
     WidgetItem
 } from '../types/Widget';
 import {
@@ -11,11 +13,16 @@ import {
 } from '../utils/git';
 
 import {
-    getHideNoGitKeybinds,
-    getHideNoGitModifierText,
-    handleToggleNoGitAction,
-    isHideNoGitEnabled
-} from './shared/git-no-git';
+    NO_GIT_HIDEABLE_STATE,
+    isHidden
+} from './shared/hideable';
+import {
+    formatSymbolPrefix,
+    getSymbolKeybind,
+    renderSymbolOverrideEditor
+} from './shared/symbol-override';
+
+const DEFAULT_SYMBOL = '𖠰';
 
 export class GitWorktreeWidget implements Widget {
     getDefaultColor(): string { return 'blue'; }
@@ -23,31 +30,29 @@ export class GitWorktreeWidget implements Widget {
     getDisplayName(): string { return 'Git Worktree'; }
     getCategory(): string { return 'Git'; }
     getEditorDisplay(item: WidgetItem): WidgetEditorDisplay {
-        return {
-            displayText: this.getDisplayName(),
-            modifierText: getHideNoGitModifierText(item)
-        };
+        return { displayText: this.getDisplayName() };
     }
 
-    handleEditorAction(action: string, item: WidgetItem): WidgetItem | null {
-        return handleToggleNoGitAction(action, item);
+    getHideableStates(): HideableState[] {
+        return [NO_GIT_HIDEABLE_STATE];
     }
 
     render(item: WidgetItem, context: RenderContext): string | null {
-        const hideNoGit = isHideNoGitEnabled(item);
+        const hideNoGit = isHidden(item, NO_GIT_HIDEABLE_STATE.key);
+        const prefix = formatSymbolPrefix(item, DEFAULT_SYMBOL);
 
         if (context.isPreview)
-            return item.rawValue ? 'main' : '𖠰 main';
+            return item.rawValue ? 'main' : `${prefix}main`;
 
         if (!isInsideGitWorkTree(context)) {
-            return hideNoGit ? null : '𖠰 no git';
+            return hideNoGit ? null : `${prefix}no git`;
         }
 
         const worktree = this.getGitWorktree(context);
         if (worktree)
-            return item.rawValue ? worktree : `𖠰 ${worktree}`;
+            return item.rawValue ? worktree : `${prefix}${worktree}`;
 
-        return hideNoGit ? null : '𖠰 no git';
+        return hideNoGit ? null : `${prefix}no git`;
     }
 
     private getGitWorktree(context: RenderContext): string | null {
@@ -80,7 +85,11 @@ export class GitWorktreeWidget implements Widget {
     }
 
     getCustomKeybinds(): CustomKeybind[] {
-        return getHideNoGitKeybinds();
+        return [getSymbolKeybind()];
+    }
+
+    renderEditor(props: WidgetEditorProps) {
+        return renderSymbolOverrideEditor(props, DEFAULT_SYMBOL);
     }
 
     supportsRawValue(): boolean { return true; }

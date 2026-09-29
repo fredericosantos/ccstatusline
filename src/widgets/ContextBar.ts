@@ -11,22 +11,32 @@ import {
     getContextConfig,
     getModelContextIdentifier
 } from '../utils/model-context';
+import {
+    formatPercent,
+    resolveNumberFormat
+} from '../utils/number-format';
+import { formatTokens } from '../utils/renderer';
 import { makeUsageProgressBar } from '../utils/usage';
 
 import {
-    cycleProgressBarMode,
-    formatProgressBarText,
-    getProgressBarMode,
-    getProgressBarWidth,
-    isProgressPercentVisible,
-    isProgressUsageVisible,
-    type ProgressBarMode,
-    toggleProgressPercent,
-    toggleProgressUsage
-} from './shared/progress-bar-display';
+    isMetadataFlagEnabled,
+    toggleMetadataFlag
+} from './shared/metadata';
+import { makeTimerProgressBar } from './shared/progress-bar';
+import { makeSliderBar } from './shared/usage-display';
 
-function getDisplayMode(item: WidgetItem): ProgressBarMode {
-    return getProgressBarMode(item, 'progress-s');
+type DisplayMode = 'progress' | 'progress-short' | 'progress-xs' | 'slider' | 'slider-only';
+
+function getDisplayMode(item: WidgetItem): DisplayMode {
+    const mode = item.metadata?.display;
+    if (mode === 'progress' || mode === 'progress-xs' || mode === 'slider' || mode === 'slider-only') {
+        return mode;
+    }
+    return 'progress-short';
+}
+
+function isBarSliderMode(mode: DisplayMode): boolean {
+    return mode === 'slider' || mode === 'slider-only';
 }
 
 export class ContextBarWidget implements Widget {
@@ -37,19 +47,22 @@ export class ContextBarWidget implements Widget {
 
     getEditorDisplay(item: WidgetItem): WidgetEditorDisplay {
         const mode = getDisplayMode(item);
-        const labels: Record<ProgressBarMode, string> = {
-            'progress': 'bar',
-            'progress-s': 'bar s',
-            'progress-xs': 'bar xs'
-        };
-        const modifiers = [labels[mode]];
+        const modifiers: string[] = [];
 
-        if (isProgressPercentVisible(item)) {
-            modifiers.push('percent');
-        }
-
-        if (isProgressUsageVisible(item)) {
-            modifiers.push('usage');
+        if (mode === 'progress-short') {
+            modifiers.push('medium bar');
+        } else if (mode === 'progress-xs') {
+            modifiers.push('tiny bar');
+            if (isMetadataFlagEnabled(item, 'showPercent')) {
+                modifiers.push('percent');
+            }
+            if (isMetadataFlagEnabled(item, 'showUsage')) {
+                modifiers.push('usage');
+            }
+        } else if (mode === 'slider') {
+            modifiers.push('short bar');
+        } else if (mode === 'slider-only') {
+            modifiers.push('short bar only');
         }
 
         return {
@@ -59,44 +72,70 @@ export class ContextBarWidget implements Widget {
     }
 
     handleEditorAction(action: string, item: WidgetItem): WidgetItem | null {
-        if (action === 'toggle-progress') {
-            const nextMode = cycleProgressBarMode(getDisplayMode(item));
-            return {
-                ...item,
-                metadata: {
-                    ...(item.metadata ?? {}),
-                    display: nextMode
-                }
-            };
-        }
-
         if (action === 'toggle-percent') {
-            return toggleProgressPercent(item);
+            return toggleMetadataFlag(item, 'showPercent');
         }
 
         if (action === 'toggle-usage') {
-            return toggleProgressUsage(item);
+            return toggleMetadataFlag(item, 'showUsage');
         }
 
-        return null;
+        if (action !== 'toggle-progress') {
+            return null;
+        }
+
+        const currentMode = getDisplayMode(item);
+        const nextMode: DisplayMode = currentMode === 'progress-short'
+            ? 'progress'
+            : currentMode === 'progress'
+                ? 'progress-xs'
+                : currentMode === 'progress-xs'
+                    ? 'slider'
+                    : currentMode === 'slider'
+                        ? 'slider-only'
+                        : 'progress-short';
+
+        return {
+            ...item,
+            metadata: {
+                ...(item.metadata ?? {}),
+                display: nextMode
+            }
+        };
     }
 
-    private buildDisplay(item: WidgetItem, percent: number, bar: string, usageText: string): string {
-        return formatProgressBarText(bar, {
-            showPercent: isProgressPercentVisible(item),
-            percentText: `${Math.round(percent)}%`,
-            showUsage: isProgressUsageVisible(item),
-            usageText
-        });
+    // The xs bar is bracket-less; percent and used/total are opt-in via showPercent / showUsage
+    private renderXs(item: WidgetItem, percent: number, usageText: string): string {
+        const parts = [makeTimerProgressBar(percent, 5)];
+        if (isMetadataFlagEnabled(item, 'showPercent')) {
+            parts.push(`${Math.round(percent)}%`);
+        }
+        if (isMetadataFlagEnabled(item, 'showUsage')) {
+            parts.push(usageText);
+        }
+        const display = parts.join(' ');
+        return item.rawValue ? display : `Context: ${display}`;
     }
 
     render(item: WidgetItem, context: RenderContext, settings: Settings): string | null {
         const displayMode = getDisplayMode(item);
-        const barWidth = getProgressBarWidth(displayMode);
+        const tokenFormat = resolveNumberFormat('token', item, settings);
+        const percentFormat = resolveNumberFormat('percent', item, settings);
 
         if (context.isPreview) {
-            const previewBar = makeUsageProgressBar(25, barWidth);
-            const previewDisplay = this.buildDisplay(item, 25, previewBar, '50k/200k');
+            if (displayMode === 'progress-xs') {
+                return this.renderXs(item, 25, '50k/200k');
+            }
+            const usedDisplay = formatTokens(50000, tokenFormat, 0);
+            const totalDisplay = formatTokens(200000, tokenFormat, 0);
+            const percentDisplay = formatPercent(25, percentFormat, 0);
+            if (isBarSliderMode(displayMode)) {
+                const slider = makeSliderBar(25);
+                const sliderDisplay = displayMode === 'slider' ? `${slider} ${usedDisplay}/${totalDisplay} (${percentDisplay})` : slider;
+                return item.rawValue ? sliderDisplay : `Context: ${sliderDisplay}`;
+            }
+            const barWidth = displayMode === 'progress' ? 32 : 16;
+            const previewDisplay = `${makeUsageProgressBar(25, barWidth)} ${usedDisplay}/${totalDisplay} (${percentDisplay})`;
             return item.rawValue ? previewDisplay : `Context: ${previewDisplay}`;
         }
 
@@ -120,22 +159,40 @@ export class ContextBarWidget implements Widget {
 
         const percent = (used / total) * 100;
         const clampedPercent = Math.max(0, Math.min(100, percent));
-        const usedK = Math.round(used / 1000);
-        const totalK = Math.round(total / 1000);
-        const bar = makeUsageProgressBar(clampedPercent, barWidth);
-        const display = this.buildDisplay(item, clampedPercent, bar, `${usedK}k/${totalK}k`);
+        const usedDisplay = formatTokens(used, tokenFormat, 0);
+        const totalDisplay = formatTokens(total, tokenFormat, 0);
+        const percentDisplay = formatPercent(clampedPercent, percentFormat, 0);
+
+        if (displayMode === 'progress-xs') {
+            return this.renderXs(item, clampedPercent, `${Math.round(used / 1000)}k/${Math.round(total / 1000)}k`);
+        }
+
+        if (isBarSliderMode(displayMode)) {
+            const slider = makeSliderBar(clampedPercent);
+            const sliderDisplay = displayMode === 'slider' ? `${slider} ${usedDisplay}/${totalDisplay} (${percentDisplay})` : slider;
+            return item.rawValue ? sliderDisplay : `Context: ${sliderDisplay}`;
+        }
+
+        const barWidth = displayMode === 'progress' ? 32 : 16;
+        const display = `${makeUsageProgressBar(clampedPercent, barWidth)} ${usedDisplay}/${totalDisplay} (${percentDisplay})`;
 
         return item.rawValue ? display : `Context: ${display}`;
     }
 
-    getCustomKeybinds(): CustomKeybind[] {
-        return [
-            { key: 'p', label: '(p)rogress toggle', action: 'toggle-progress' },
-            { key: 'e', label: 'show p(e)rcent', action: 'toggle-percent' },
-            { key: 'u', label: 'show (u)sage', action: 'toggle-usage' }
+    getCustomKeybinds(item?: WidgetItem): CustomKeybind[] {
+        const keybinds: CustomKeybind[] = [
+            { key: 'p', label: '(p)rogress toggle', action: 'toggle-progress' }
         ];
+        if (item && getDisplayMode(item) === 'progress-xs') {
+            keybinds.push(
+                { key: 'e', label: 'show p(e)rcent', action: 'toggle-percent' },
+                { key: 'u', label: 'show (u)sage', action: 'toggle-usage' }
+            );
+        }
+        return keybinds;
     }
 
     supportsRawValue(): boolean { return true; }
     supportsColors(item: WidgetItem): boolean { return true; }
+    supportsNumberFormat(): boolean { return true; }
 }

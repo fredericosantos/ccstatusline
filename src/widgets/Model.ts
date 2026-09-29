@@ -16,24 +16,24 @@ export class ModelWidget implements Widget {
     }
 
     render(item: WidgetItem, context: RenderContext, settings: Settings): string | null {
-        const shortName = item.metadata?.shortName === 'true';
+        const firstWordOnly = item.metadata?.shortName === 'true';
 
         if (context.isPreview) {
-            const preview = shortName ? 'Opus' : 'Claude';
+            const preview = firstWordOnly ? 'Opus' : 'Claude';
             return item.rawValue ? preview : `Model: ${preview}`;
         }
 
         const model = context.data?.model;
-        const fullName = typeof model === 'string'
+        const modelDisplayName = typeof model === 'string'
             ? model
             : (model?.display_name ?? model?.id);
 
-        if (!fullName) {
-            return null;
+        if (modelDisplayName) {
+            const stripped = modelDisplayName.replace(/\s*\(.*\)$/, '');
+            const name = firstWordOnly ? (stripped.split(/\s+/)[0] ?? stripped) : stripped;
+            return item.rawValue ? name : `Model: ${name}`;
         }
-
-        const displayName = shortName ? (fullName.split(/\s+/)[0] ?? fullName) : fullName;
-        return item.rawValue ? displayName : `Model: ${displayName}`;
+        return null;
     }
 
     supportsRawValue(): boolean { return true; }

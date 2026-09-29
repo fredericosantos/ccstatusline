@@ -1,5 +1,5 @@
-import { PassThrough } from 'node:stream';
 import { render } from 'ink';
+import { PassThrough } from 'node:stream';
 import React from 'react';
 import {
     afterEach,
@@ -12,9 +12,9 @@ import {
 import { DEFAULT_SETTINGS } from '../../../types/Settings';
 import { getPowerlineThemes } from '../../../utils/colors';
 import {
+    PowerlineThemeSelector,
     applyCustomPowerlineTheme,
     buildPowerlineThemeItems,
-    PowerlineThemeSelector,
     type PowerlineThemeSelectorProps
 } from '../PowerlineThemeSelector';
 
@@ -48,6 +48,16 @@ function flushInk() {
     return new Promise((resolve) => {
         setTimeout(resolve, 25);
     });
+}
+
+async function waitForInkCondition(condition: () => boolean) {
+    const timeoutAt = Date.now() + 1000;
+
+    while (!condition() && Date.now() < timeoutAt) {
+        await new Promise((resolve) => {
+            setTimeout(resolve, 10);
+        });
+    }
 }
 
 describe('PowerlineThemeSelector helpers', () => {
@@ -139,6 +149,7 @@ describe('PowerlineThemeSelector helpers', () => {
             expect(onUpdate).not.toHaveBeenCalled();
 
             stdin.write('\u001B[B');
+            await waitForInkCondition(() => onUpdate.mock.calls.length > 0);
             await flushInk();
 
             expect(onUpdate).toHaveBeenCalledTimes(1);

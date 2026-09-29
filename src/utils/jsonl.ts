@@ -1,14 +1,20 @@
-export { getBlockMetrics } from './jsonl-blocks';
 export {
     getBlockCachePath,
     getCachedBlockMetrics,
     readBlockCache,
     writeBlockCache
 } from './jsonl-cache';
-export { getTranscriptThinkingEffort } from './jsonl-metadata';
-export {
-    getSessionDuration,
-    getSpeedMetrics,
-    getSpeedMetricsCollection,
-    getTokenMetrics
+export { getBlockMetrics } from './jsonl-blocks';
+export { getTranscriptAnalysis } from './jsonl-metrics';
+export type {
+    TranscriptAnalysis,
+    TranscriptAnalysisOptions
 } from './jsonl-metrics';
+export {
+    getTranscriptThinkingEffort,
+    normalizeThinkingEffort
+} from './jsonl-metadata';
+export type {
+    ResolvedThinkingEffort,
+    TranscriptThinkingEffort
+} from './jsonl-metadata';

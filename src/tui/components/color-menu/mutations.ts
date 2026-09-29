@@ -37,17 +37,38 @@ export function toggleWidgetBold(widgets: WidgetItem[], widgetId: string): Widge
     }));
 }
 
+export function cycleWidgetDim(widgets: WidgetItem[], widgetId: string): WidgetItem[] {
+    return updateWidgetById(widgets, widgetId, (widget) => {
+        // Cycle: off -> whole widget -> (...) spans only -> off
+        if (widget.dim === true) {
+            return {
+                ...widget,
+                dim: 'parens' as const
+            };
+        }
+
+        if (widget.dim === 'parens') {
+            const { dim, ...restWidget } = widget;
+            return restWidget;
+        }
+
+        return {
+            ...widget,
+            dim: true
+        };
+    });
+}
+
 export function resetWidgetStyling(widgets: WidgetItem[], widgetId: string): WidgetItem[] {
     return updateWidgetById(widgets, widgetId, (widget) => {
         const {
             color,
             backgroundColor,
             bold,
+            dim,
+            numberFormat,
             ...restWidget
         } = widget;
-        void color; // Intentionally unused
-        void backgroundColor; // Intentionally unused
-        void bold; // Intentionally unused
         return restWidget;
     });
 }
@@ -58,11 +79,10 @@ export function clearAllWidgetStyling(widgets: WidgetItem[]): WidgetItem[] {
             color,
             backgroundColor,
             bold,
+            dim,
+            numberFormat,
             ...restWidget
         } = widget;
-        void color; // Intentionally unused
-        void backgroundColor; // Intentionally unused
-        void bold; // Intentionally unused
         return restWidget;
     });
 }

@@ -4,11 +4,17 @@ import type {
     WidgetItem,
     WidgetItemType
 } from '../../../types/Widget';
+import { generateGuid } from '../../../utils/guid';
+import {
+    CYCLE_NUMBER_STYLE_ACTION,
+    cycleNumberStyle
+} from '../../../utils/number-format';
 import {
     filterWidgetCatalog,
     getWidget,
     type WidgetCatalogEntry
 } from '../../../utils/widgets';
+import { EDIT_HIDE_STATES_ACTION } from '../../../widgets/shared/hideable';
 
 export type WidgetPickerAction = 'change' | 'add' | 'insert';
 export type WidgetPickerLevel = 'category' | 'widget';
@@ -190,8 +196,8 @@ export function handlePickerInputMode({
                 }
 
                 const nextIndex = key.downArrow
-                    ? Math.min(topLevelSearchEntries.length - 1, currentIndex + 1)
-                    : Math.max(0, currentIndex - 1);
+                    ? (currentIndex + 1 > topLevelSearchEntries.length - 1 ? 0 : currentIndex + 1)
+                    : (currentIndex - 1 < 0 ? topLevelSearchEntries.length - 1 : currentIndex - 1);
                 const nextType = topLevelSearchEntries[nextIndex]?.type ?? null;
                 setPickerState(setWidgetPicker, normalizeState, prev => ({
                     ...prev,
@@ -208,8 +214,8 @@ export function handlePickerInputMode({
                 }
 
                 const nextIndex = key.downArrow
-                    ? Math.min(filteredCategories.length - 1, currentIndex + 1)
-                    : Math.max(0, currentIndex - 1);
+                    ? (currentIndex + 1 > filteredCategories.length - 1 ? 0 : currentIndex + 1)
+                    : (currentIndex - 1 < 0 ? filteredCategories.length - 1 : currentIndex - 1);
                 const nextCategory = filteredCategories[nextIndex] ?? null;
                 setPickerState(setWidgetPicker, normalizeState, prev => ({
                     ...prev,
@@ -219,7 +225,8 @@ export function handlePickerInputMode({
         } else if (key.backspace || key.delete) {
             setPickerState(setWidgetPicker, normalizeState, prev => ({
                 ...prev,
-                categoryQuery: prev.categoryQuery.slice(0, -1)
+                categoryQuery: prev.categoryQuery.slice(0, -1),
+                selectedType: null
             }));
         } else if (
             input
@@ -229,7 +236,8 @@ export function handlePickerInputMode({
         ) {
             setPickerState(setWidgetPicker, normalizeState, prev => ({
                 ...prev,
-                categoryQuery: prev.categoryQuery + input
+                categoryQuery: prev.categoryQuery + input,
+                selectedType: null
             }));
         }
     } else {
@@ -260,8 +268,8 @@ export function handlePickerInputMode({
             }
 
             const nextIndex = key.downArrow
-                ? Math.min(filteredWidgets.length - 1, currentIndex + 1)
-                : Math.max(0, currentIndex - 1);
+                ? (currentIndex + 1 > filteredWidgets.length - 1 ? 0 : currentIndex + 1)
+                : (currentIndex - 1 < 0 ? filteredWidgets.length - 1 : currentIndex - 1);
             const nextType = filteredWidgets[nextIndex]?.type ?? null;
             setPickerState(setWidgetPicker, normalizeState, prev => ({
                 ...prev,
@@ -270,7 +278,8 @@ export function handlePickerInputMode({
         } else if (key.backspace || key.delete) {
             setPickerState(setWidgetPicker, normalizeState, prev => ({
                 ...prev,
-                widgetQuery: prev.widgetQuery.slice(0, -1)
+                widgetQuery: prev.widgetQuery.slice(0, -1),
+                selectedType: null
             }));
         } else if (
             input
@@ -280,7 +289,8 @@ export function handlePickerInputMode({
         ) {
             setPickerState(setWidgetPicker, normalizeState, prev => ({
                 ...prev,
-                widgetQuery: prev.widgetQuery + input
+                widgetQuery: prev.widgetQuery + input,
+                selectedType: null
             }));
         }
     }
@@ -303,24 +313,26 @@ export function handleMoveInputMode({
     setSelectedIndex,
     setMoveMode
 }: HandleMoveInputModeArgs): void {
-    if (key.upArrow && selectedIndex > 0) {
+    if (key.upArrow && widgets.length > 1) {
         const newWidgets = [...widgets];
+        const targetIndex = selectedIndex - 1 < 0 ? widgets.length - 1 : selectedIndex - 1;
         const temp = newWidgets[selectedIndex];
-        const prev = newWidgets[selectedIndex - 1];
+        const prev = newWidgets[targetIndex];
         if (temp && prev) {
-            [newWidgets[selectedIndex], newWidgets[selectedIndex - 1]] = [prev, temp];
+            [newWidgets[selectedIndex], newWidgets[targetIndex]] = [prev, temp];
         }
         onUpdate(newWidgets);
-        setSelectedIndex(selectedIndex - 1);
-    } else if (key.downArrow && selectedIndex < widgets.length - 1) {
+        setSelectedIndex(targetIndex);
+    } else if (key.downArrow && widgets.length > 1) {
         const newWidgets = [...widgets];
+        const targetIndex = selectedIndex + 1 > widgets.length - 1 ? 0 : selectedIndex + 1;
         const temp = newWidgets[selectedIndex];
-        const next = newWidgets[selectedIndex + 1];
+        const next = newWidgets[targetIndex];
         if (temp && next) {
-            [newWidgets[selectedIndex], newWidgets[selectedIndex + 1]] = [next, temp];
+            [newWidgets[selectedIndex], newWidgets[targetIndex]] = [next, temp];
         }
         onUpdate(newWidgets);
-        setSelectedIndex(selectedIndex + 1);
+        setSelectedIndex(targetIndex);
     } else if (key.escape || key.return) {
         setMoveMode(false);
     }
@@ -331,6 +343,7 @@ export interface HandleNormalInputModeArgs {
     key: InputKey;
     widgets: WidgetItem[];
     selectedIndex: number;
+    canExcludeAlign?: boolean;
     separatorChars: string[];
     onBack: () => void;
     onUpdate: (widgets: WidgetItem[]) => void;
@@ -340,6 +353,7 @@ export interface HandleNormalInputModeArgs {
     openWidgetPicker: (action: WidgetPickerAction) => void;
     getCustomKeybindsForWidget: (widgetImpl: Widget, widget: WidgetItem) => CustomKeybind[];
     setCustomEditorWidget: (state: CustomEditorWidgetState | null) => void;
+    getUniqueBackgroundColor?: (insertIndex: number) => string | undefined;
 }
 
 export function handleNormalInputMode({
@@ -347,6 +361,7 @@ export function handleNormalInputMode({
     key,
     widgets,
     selectedIndex,
+    canExcludeAlign = false,
     separatorChars,
     onBack,
     onUpdate,
@@ -355,12 +370,13 @@ export function handleNormalInputMode({
     setShowClearConfirm,
     openWidgetPicker,
     getCustomKeybindsForWidget,
-    setCustomEditorWidget
+    setCustomEditorWidget,
+    getUniqueBackgroundColor
 }: HandleNormalInputModeArgs): void {
     if (key.upArrow && widgets.length > 0) {
-        setSelectedIndex(Math.max(0, selectedIndex - 1));
+        setSelectedIndex(selectedIndex - 1 < 0 ? widgets.length - 1 : selectedIndex - 1);
     } else if (key.downArrow && widgets.length > 0) {
-        setSelectedIndex(Math.min(widgets.length - 1, selectedIndex + 1));
+        setSelectedIndex(selectedIndex + 1 > widgets.length - 1 ? 0 : selectedIndex + 1);
     } else if (key.leftArrow && widgets.length > 0) {
         openWidgetPicker('change');
     } else if (key.rightArrow && widgets.length > 0) {
@@ -377,6 +393,26 @@ export function handleNormalInputMode({
         if (selectedIndex >= newWidgets.length && selectedIndex > 0) {
             setSelectedIndex(selectedIndex - 1);
         }
+    } else if (input === 'k' && widgets.length > 0) {
+        const source = widgets[selectedIndex];
+        if (!source) {
+            return;
+        }
+        const insertIndex = selectedIndex + 1;
+        const newBg = getUniqueBackgroundColor?.(insertIndex);
+        const clone: WidgetItem = {
+            ...source,
+            id: generateGuid(),
+            ...(source.metadata && { metadata: { ...source.metadata } }),
+            ...(newBg && { backgroundColor: newBg })
+        };
+        const newWidgets = [
+            ...widgets.slice(0, insertIndex),
+            clone,
+            ...widgets.slice(insertIndex)
+        ];
+        onUpdate(newWidgets);
+        setSelectedIndex(insertIndex);
     } else if (input === 'c') {
         if (widgets.length > 0) {
             setShowClearConfirm(true);
@@ -419,10 +455,21 @@ export function handleNormalInputMode({
 
             if (nextMergeState === undefined) {
                 const { merge, ...rest } = currentWidget;
-                void merge; // Intentionally unused
                 newWidgets[selectedIndex] = rest;
             } else {
                 newWidgets[selectedIndex] = { ...currentWidget, merge: nextMergeState };
+            }
+            onUpdate(newWidgets);
+        }
+    } else if (input === 'x' && widgets.length > 0) {
+        const currentWidget = widgets[selectedIndex];
+        if (canExcludeAlign && currentWidget && currentWidget.type !== 'separator' && currentWidget.type !== 'flex-separator') {
+            const newWidgets = [...widgets];
+            if (currentWidget.excludeFromAutoAlign) {
+                const { excludeFromAutoAlign, ...rest } = currentWidget;
+                newWidgets[selectedIndex] = rest;
+            } else {
+                newWidgets[selectedIndex] = { ...currentWidget, excludeFromAutoAlign: true };
             }
             onUpdate(newWidgets);
         }
@@ -432,7 +479,7 @@ export function handleNormalInputMode({
         const currentWidget = widgets[selectedIndex];
         if (currentWidget && currentWidget.type !== 'separator' && currentWidget.type !== 'flex-separator') {
             const widgetImpl = getWidget(currentWidget.type);
-            if (!widgetImpl?.getCustomKeybinds) {
+            if (!widgetImpl) {
                 return;
             }
 
@@ -440,7 +487,21 @@ export function handleNormalInputMode({
             const matchedKeybind = customKeybinds.find(kb => kb.key === input);
 
             if (matchedKeybind && !key.ctrl) {
-                if (widgetImpl.handleEditorAction) {
+                // The hide-state checklist is rendered by the items editor for
+                // every widget that declares hideable states, so it bypasses
+                // widget-level action handling.
+                if (matchedKeybind.action === EDIT_HIDE_STATES_ACTION) {
+                    setCustomEditorWidget({ widget: currentWidget, impl: widgetImpl, action: matchedKeybind.action });
+                    return;
+                }
+
+                // The precision cycle is shared by every numeric widget, so it is
+                // applied here instead of in each widget's handleEditorAction.
+                if (matchedKeybind.action === CYCLE_NUMBER_STYLE_ACTION) {
+                    const newWidgets = [...widgets];
+                    newWidgets[selectedIndex] = cycleNumberStyle(currentWidget);
+                    onUpdate(newWidgets);
+                } else if (widgetImpl.handleEditorAction) {
                     const updatedWidget = widgetImpl.handleEditorAction(matchedKeybind.action, currentWidget);
                     if (updatedWidget) {
                         const newWidgets = [...widgets];

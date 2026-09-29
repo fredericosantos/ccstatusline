@@ -1,9 +1,9 @@
-import * as os from 'node:os';
 import {
     Box,
     Text,
     useInput
 } from 'ink';
+import * as os from 'node:os';
 import React, { useState } from 'react';
 
 import type { RenderContext } from '../types/RenderContext';
@@ -16,6 +16,13 @@ import type {
     WidgetItem
 } from '../types/Widget';
 import { shouldInsertInput } from '../utils/input-guards';
+
+import {
+    SYMBOL_OVERRIDE_ACTION,
+    formatSymbolPrefix,
+    getSymbolKeybind,
+    renderSymbolOverrideEditor
+} from './shared/symbol-override';
 
 export class CurrentWorkingDirWidget implements Widget {
     getDefaultColor(): string { return 'blue'; }
@@ -52,7 +59,6 @@ export class CurrentWorkingDirWidget implements Widget {
             if (newAbbreviateHome) {
                 // When enabling abbreviateHome, disable fishStyle (mutually exclusive)
                 const { fishStyle, ...restMetadata } = item.metadata ?? {};
-                void fishStyle;
                 return {
                     ...item,
                     metadata: {
@@ -63,7 +69,6 @@ export class CurrentWorkingDirWidget implements Widget {
             } else {
                 // When disabling abbreviateHome
                 const { abbreviateHome, ...restMetadata } = item.metadata ?? {};
-                void abbreviateHome;
 
                 return {
                     ...item,
@@ -80,8 +85,6 @@ export class CurrentWorkingDirWidget implements Widget {
             if (newFishStyle) {
                 // When enabling fish-style, clear segments and abbreviateHome (mutually exclusive)
                 const { segments, abbreviateHome, ...restMetadata } = item.metadata ?? {};
-                void segments;
-                void abbreviateHome;
                 return {
                     ...item,
                     metadata: {
@@ -92,7 +95,6 @@ export class CurrentWorkingDirWidget implements Widget {
             } else {
                 // When disabling fish-style
                 const { fishStyle, ...restMetadata } = item.metadata ?? {};
-                void fishStyle;
 
                 return {
                     ...item,
@@ -108,6 +110,7 @@ export class CurrentWorkingDirWidget implements Widget {
         const segments = item.metadata?.segments ? parseInt(item.metadata.segments, 10) : undefined;
         const fishStyle = item.metadata?.fishStyle === 'true';
         const abbreviateHome = item.metadata?.abbreviateHome === 'true';
+        const symbolPrefix = formatSymbolPrefix(item, '');
 
         if (context.isPreview) {
             let previewPath: string;
@@ -132,7 +135,7 @@ export class CurrentWorkingDirWidget implements Widget {
                 previewPath = '/Users/example/Documents/Projects/my-project';
             }
 
-            return item.rawValue ? previewPath : `cwd: ${previewPath}`;
+            return item.rawValue ? `${symbolPrefix}${previewPath}` : `${symbolPrefix}cwd: ${previewPath}`;
         }
 
         const cwd = context.data?.cwd;
@@ -169,18 +172,22 @@ export class CurrentWorkingDirWidget implements Widget {
             }
         }
 
-        return item.rawValue ? displayPath : `cwd: ${displayPath}`;
+        return item.rawValue ? `${symbolPrefix}${displayPath}` : `${symbolPrefix}cwd: ${displayPath}`;
     }
 
     getCustomKeybinds(): CustomKeybind[] {
         return [
             { key: 'h', label: '(h)ome ~', action: 'toggle-abbreviate-home' },
             { key: 's', label: '(s)egments', action: 'edit-segments' },
-            { key: 'f', label: '(f)ish style', action: 'toggle-fish-style' }
+            { key: 'f', label: '(f)ish style', action: 'toggle-fish-style' },
+            getSymbolKeybind()
         ];
     }
 
     renderEditor(props: WidgetEditorProps): React.ReactElement {
+        if (props.action === SYMBOL_OVERRIDE_ACTION) {
+            return renderSymbolOverrideEditor(props, '');
+        }
         return <CurrentWorkingDirEditor {...props} />;
     }
 
@@ -260,7 +267,6 @@ const CurrentWorkingDirEditor: React.FC<WidgetEditorProps> = ({ widget, onComple
                 } else {
                     // Clear segments if blank or invalid
                     const { segments, ...restMetadata } = widget.metadata ?? {};
-                    void segments; // Intentionally unused
                     onComplete({
                         ...widget,
                         metadata: Object.keys(restMetadata).length > 0 ? restMetadata : undefined

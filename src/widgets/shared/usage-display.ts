@@ -1,7 +1,12 @@
 import type {
     CustomKeybind,
+    HideableState,
     WidgetItem
 } from '../../types/Widget';
+import {
+    DEFAULT_RESET_LOCALE,
+    canonicalizeLocale
+} from '../../utils/locales';
 
 import { makeModifierText } from './editor-display';
 import {
@@ -9,36 +14,89 @@ import {
     removeMetadataKeys,
     toggleMetadataFlag
 } from './metadata';
-import {
-    getProgressBarWidth,
-    isProgressBarMode,
-    isProgressPercentVisible,
-    isProgressUsageVisible,
-    type ProgressBarMode
-} from './progress-bar-display';
 
-export type UsageDisplayMode = 'time' | ProgressBarMode;
+export type UsageDisplayMode = 'time' | 'progress' | 'progress-short' | 'progress-xs' | 'slider' | 'slider-only';
+
+// Shared by the usage percentage widgets and the reset timers, which render the
+// same error placeholders
+export const USAGE_NO_DATA_HIDEABLE_STATE: HideableState = { key: 'no-data', label: 'when usage data is unavailable' };
+
+const SLIDER_WIDTH = 10;
 
 const PROGRESS_TOGGLE_KEYBIND: CustomKeybind = { key: 'p', label: '(p)rogress toggle', action: 'toggle-progress' };
 const INVERT_TOGGLE_KEYBIND: CustomKeybind = { key: 'v', label: 'in(v)ert fill', action: 'toggle-invert' };
 const PERCENT_TOGGLE_KEYBIND: CustomKeybind = { key: 'e', label: 'show p(e)rcent', action: 'toggle-percent' };
-const USAGE_TOGGLE_KEYBIND: CustomKeybind = { key: 'u', label: 'show (u)sage', action: 'toggle-usage' };
 const COMPACT_TOGGLE_KEYBIND: CustomKeybind = { key: 's', label: '(s)hort time', action: 'toggle-compact' };
+const CURSOR_TOGGLE_KEYBIND: CustomKeybind = { key: 't', label: '(t)ime cursor', action: 'toggle-cursor' };
+const DATE_TOGGLE_KEYBIND: CustomKeybind = { key: 't', label: '(t)imestamp', action: 'toggle-date' };
+// 'h' opens the shared hide checklist, and the items editor appends that bind
+// last while matching takes the first hit, so a widget-level 'h' would make the
+// checklist unreachable in the modes that offer this toggle.
+const HOUR_FORMAT_TOGGLE_KEYBIND: CustomKeybind = { key: 'f', label: '12/24 (f)ormat', action: 'toggle-hour-format' };
+const WEEKDAY_TOGGLE_KEYBIND: CustomKeybind = { key: 'w', label: '(w)eekday', action: 'toggle-weekday' };
+const TIMEZONE_KEYBIND: CustomKeybind = { key: 'z', label: 'time(z)one', action: 'edit-timezone' };
+const LOCALE_KEYBIND: CustomKeybind = { key: 'l', label: '(l)ocale', action: 'edit-locale' };
 
 export function getUsageDisplayMode(item: WidgetItem): UsageDisplayMode {
-    return isProgressBarMode(item.metadata?.display) ? item.metadata.display : 'time';
+    const mode = item.metadata?.display;
+    if (mode === 'progress' || mode === 'progress-short' || mode === 'progress-xs' || mode === 'slider' || mode === 'slider-only') {
+        return mode;
+    }
+    return 'time';
 }
 
 export function isUsageProgressMode(mode: UsageDisplayMode): boolean {
-    return mode !== 'time';
+    return mode === 'progress' || mode === 'progress-short' || mode === 'progress-xs';
 }
 
-export function isUsageBarMode(mode: UsageDisplayMode): boolean {
-    return isUsageProgressMode(mode);
+export function isUsageSliderMode(mode: UsageDisplayMode): boolean {
+    return mode === 'slider' || mode === 'slider-only';
+}
+
+interface SliderBarOptions { cursorPercent?: number }
+
+export function makeSliderBar(percent: number, width: number = SLIDER_WIDTH, options?: SliderBarOptions): string {
+    const clamped = Math.max(0, Math.min(100, percent));
+    const filled = Math.round((clamped / 100) * width);
+    const cursorPos = options?.cursorPercent !== undefined
+        ? Math.min(Math.floor((Math.max(0, Math.min(100, options.cursorPercent)) / 100) * width), width - 1)
+        : -1;
+
+    let bar = '';
+    for (let i = 0; i < width; i++) {
+        if (i === cursorPos) {
+            bar += '│';
+        } else if (i < filled) {
+            bar += '▓';
+        } else {
+            bar += '░';
+        }
+    }
+
+    return bar;
 }
 
 export function getUsageProgressBarWidth(mode: UsageDisplayMode): number {
-    return mode === 'time' ? 16 : getProgressBarWidth(mode);
+    if (mode === 'progress-xs') {
+        return 5;
+    }
+    return mode === 'progress' ? 32 : 16;
+}
+
+export function isUsagePercentShown(item: WidgetItem): boolean {
+    return isMetadataFlagEnabled(item, 'showPercent');
+}
+
+export function toggleUsagePercent(item: WidgetItem): WidgetItem {
+    return toggleMetadataFlag(item, 'showPercent');
+}
+
+// The xs bar is bracket-less and shows its percent only when showPercent is set
+export function formatUsageProgress(item: WidgetItem, mode: UsageDisplayMode, bar: string, percentText: string): string {
+    if (mode === 'progress-xs') {
+        return isUsagePercentShown(item) ? `${bar} ${percentText}` : bar;
+    }
+    return `[${bar}] ${percentText}`;
 }
 
 export function isUsageInverted(item: WidgetItem): boolean {
@@ -49,11 +107,96 @@ export function isUsageCompact(item: WidgetItem): boolean {
     return isMetadataFlagEnabled(item, 'compact');
 }
 
+export function isUsageCursorEnabled(item: WidgetItem): boolean {
+    return isMetadataFlagEnabled(item, 'cursor');
+}
+
+export function toggleUsageCursor(item: WidgetItem): WidgetItem {
+    return toggleMetadataFlag(item, 'cursor');
+}
+
+export function isUsageDateMode(item: WidgetItem): boolean {
+    return isMetadataFlagEnabled(item, 'absolute');
+}
+
+export function isUsage12HourClock(item: WidgetItem): boolean {
+    return isMetadataFlagEnabled(item, 'hour12');
+}
+
+export function getUsageTimezone(item: WidgetItem): string | undefined {
+    const tz = item.metadata?.timezone;
+    return typeof tz === 'string' && tz.length > 0 ? tz : undefined;
+}
+
+export function getUsageLocale(item: WidgetItem): string | undefined {
+    const locale = item.metadata?.locale;
+    return typeof locale === 'string' && locale.length > 0 ? locale : undefined;
+}
+
+export function getUsageLocaleModifier(item: WidgetItem): string | undefined {
+    const locale = getUsageLocale(item);
+    return locale ? `locale: ${locale}` : undefined;
+}
+
+export function getUsageTimezoneModifier(item: WidgetItem): string | undefined {
+    const timezone = getUsageTimezone(item);
+    return timezone ? `tz: ${timezone}` : undefined;
+}
+
+export function setUsageTimezone(item: WidgetItem, timezone: string): WidgetItem {
+    if (timezone === 'UTC') {
+        return removeMetadataKeys(item, ['timezone']);
+    }
+
+    return {
+        ...item,
+        metadata: {
+            ...item.metadata,
+            timezone
+        }
+    };
+}
+
+export function setUsageLocale(item: WidgetItem, locale: string): WidgetItem {
+    const canonicalLocale = canonicalizeLocale(locale);
+    if (!canonicalLocale || canonicalLocale === DEFAULT_RESET_LOCALE) {
+        return removeMetadataKeys(item, ['locale']);
+    }
+
+    return {
+        ...item,
+        metadata: {
+            ...item.metadata,
+            locale: canonicalLocale
+        }
+    };
+}
+
 export function toggleUsageCompact(item: WidgetItem): WidgetItem {
     return toggleMetadataFlag(item, 'compact');
 }
 
-interface UsageDisplayModifierOptions { includeCompact?: boolean }
+export function toggleUsageDateMode(item: WidgetItem): WidgetItem {
+    return toggleMetadataFlag(item, 'absolute');
+}
+
+export function toggleUsageHourFormat(item: WidgetItem): WidgetItem {
+    return toggleMetadataFlag(item, 'hour12');
+}
+
+export function isUsageWeekdayEnabled(item: WidgetItem): boolean {
+    return isMetadataFlagEnabled(item, 'weekday');
+}
+
+export function toggleUsageWeekday(item: WidgetItem): WidgetItem {
+    return toggleMetadataFlag(item, 'weekday');
+}
+
+interface UsageDisplayModifierOptions {
+    includeCompact?: boolean;
+    includeDate?: boolean;
+    showUsageDirection?: boolean;
+}
 
 export function getUsageDisplayModifierText(
     item: WidgetItem,
@@ -63,41 +206,83 @@ export function getUsageDisplayModifierText(
     const modifiers: string[] = [];
 
     if (mode === 'progress') {
-        modifiers.push('bar');
-    } else if (mode === 'progress-s') {
-        modifiers.push('bar s');
+        modifiers.push('long bar');
+    } else if (mode === 'progress-short') {
+        modifiers.push('medium bar');
     } else if (mode === 'progress-xs') {
-        modifiers.push('bar xs');
+        modifiers.push('tiny bar');
+        if (isUsagePercentShown(item)) {
+            modifiers.push('percent');
+        }
+    } else if (mode === 'slider') {
+        modifiers.push('short bar');
+    } else if (mode === 'slider-only') {
+        modifiers.push('short bar only');
     }
 
-    if (isUsageInverted(item)) {
+    if (options.showUsageDirection) {
+        modifiers.push(isUsageInverted(item) ? 'remaining' : 'used');
+    } else if (isUsageInverted(item)) {
         modifiers.push('inverted');
     }
 
-    if (isUsageBarMode(mode) && isProgressPercentVisible(item)) {
-        modifiers.push('percent');
+    if (isUsageCursorEnabled(item) && (isUsageProgressMode(mode) || isUsageSliderMode(mode))) {
+        modifiers.push('time cursor');
     }
 
-    if (isUsageBarMode(mode) && isProgressUsageVisible(item)) {
-        modifiers.push('usage');
-    }
-
-    if (options.includeCompact && !isUsageBarMode(mode) && isUsageCompact(item)) {
+    if (options.includeCompact && !isUsageProgressMode(mode) && isUsageCompact(item)) {
         modifiers.push('compact');
+    }
+
+    if (options.includeDate && !isUsageProgressMode(mode) && isUsageDateMode(item)) {
+        modifiers.push('date');
+    }
+
+    if (options.includeDate && !isUsageProgressMode(mode) && isUsageDateMode(item) && isUsage12HourClock(item)) {
+        modifiers.push('12hr');
+    }
+
+    const timezoneModifier = getUsageTimezoneModifier(item);
+    if (options.includeDate && !isUsageProgressMode(mode) && isUsageDateMode(item) && timezoneModifier) {
+        modifiers.push(timezoneModifier);
+    }
+
+    const localeModifier = getUsageLocaleModifier(item);
+    if (options.includeDate && !isUsageProgressMode(mode) && isUsageDateMode(item) && localeModifier) {
+        modifiers.push(localeModifier);
     }
 
     return makeModifierText(modifiers);
 }
 
-export function cycleUsageDisplayMode(item: WidgetItem, disabledInProgressKeys: string[] = []): WidgetItem {
+export function cycleUsageDisplayMode(item: WidgetItem, disabledInProgressKeys: string[] = [], includeSlider = false, preserveInvertInTime = false): WidgetItem {
     const currentMode = getUsageDisplayMode(item);
-    const cycle: UsageDisplayMode[] = ['time', 'progress', 'progress-s', 'progress-xs'];
-    const currentIndex = cycle.indexOf(currentMode);
-    const nextMode: UsageDisplayMode = cycle[(currentIndex + 1) % cycle.length] ?? 'time';
+    let nextMode: UsageDisplayMode;
+    if (includeSlider) {
+        nextMode = currentMode === 'time'
+            ? 'progress'
+            : currentMode === 'progress'
+                ? 'progress-short'
+                : currentMode === 'progress-short'
+                    ? 'progress-xs'
+                    : currentMode === 'progress-xs'
+                        ? 'slider'
+                        : currentMode === 'slider'
+                            ? 'slider-only'
+                            : 'time';
+    } else {
+        nextMode = currentMode === 'time'
+            ? 'progress'
+            : currentMode === 'progress'
+                ? 'progress-short'
+                : currentMode === 'progress-short'
+                    ? 'progress-xs'
+                    : 'time';
+    }
 
-    const nextItem = removeMetadataKeys(item, nextMode === 'time'
-        ? ['invert']
-        : disabledInProgressKeys);
+    const baseKeys = nextMode === 'time' ? (preserveInvertInTime ? ['cursor'] : ['invert', 'cursor']) : disabledInProgressKeys;
+    const keysToRemove = nextMode === 'progress-xs' ? baseKeys : [...baseKeys, 'showPercent'];
+    const nextItem = removeMetadataKeys(item, keysToRemove);
     const nextMetadata: Record<string, string> = {
         ...(nextItem.metadata ?? {}),
         display: nextMode
@@ -113,31 +298,72 @@ export function toggleUsageInverted(item: WidgetItem): WidgetItem {
     return toggleMetadataFlag(item, 'invert');
 }
 
-export function getUsagePercentCustomKeybinds(item?: WidgetItem): CustomKeybind[] {
-    const keybinds = [PROGRESS_TOGGLE_KEYBIND];
+export function getUsagePercentCustomKeybinds(item?: WidgetItem, includeCursor = true): CustomKeybind[] {
+    const nextDirection = item && isUsageInverted(item) ? 'used' : 'remaining';
+    const keybinds: CustomKeybind[] = [
+        PROGRESS_TOGGLE_KEYBIND,
+        { key: 'u', label: `(u) show ${nextDirection}`, action: 'toggle-invert' }
+    ];
 
-    if (item && isUsageBarMode(getUsageDisplayMode(item))) {
-        keybinds.push(INVERT_TOGGLE_KEYBIND);
-        keybinds.push(PERCENT_TOGGLE_KEYBIND);
+    if (item && includeCursor) {
+        const mode = getUsageDisplayMode(item);
+        if (isUsageProgressMode(mode) || isUsageSliderMode(mode)) {
+            keybinds.push(CURSOR_TOGGLE_KEYBIND);
+        }
+        if (mode === 'progress-xs') {
+            keybinds.push(PERCENT_TOGGLE_KEYBIND);
+        }
     }
 
     return keybinds;
 }
 
-interface UsageTimerKeybindOptions { includeUsageToggle?: boolean }
+interface UsageTimerCustomKeybindOptions {
+    includeDate?: boolean;
+    includeHourFormat?: boolean;
+    includeLocale?: boolean;
+    includeTimezone?: boolean;
+    includeWeekday?: boolean;
+}
 
-export function getUsageTimerCustomKeybinds(item?: WidgetItem, options: UsageTimerKeybindOptions = {}): CustomKeybind[] {
+export function getUsageTimerCustomKeybinds(
+    item?: WidgetItem,
+    options: UsageTimerCustomKeybindOptions = {}
+): CustomKeybind[] {
     const keybinds = [PROGRESS_TOGGLE_KEYBIND];
 
-    if (item && isUsageBarMode(getUsageDisplayMode(item))) {
-        keybinds.push(INVERT_TOGGLE_KEYBIND);
-        keybinds.push(PERCENT_TOGGLE_KEYBIND);
+    const mode = item ? getUsageDisplayMode(item) : 'time';
+    const isBarMode = isUsageProgressMode(mode) || isUsageSliderMode(mode);
 
-        if (options.includeUsageToggle) {
-            keybinds.push(USAGE_TOGGLE_KEYBIND);
+    if (item && isBarMode) {
+        keybinds.push(INVERT_TOGGLE_KEYBIND);
+        if (mode === 'progress-xs') {
+            keybinds.push(PERCENT_TOGGLE_KEYBIND);
         }
     } else {
         keybinds.push(COMPACT_TOGGLE_KEYBIND);
+
+        if (options.includeDate) {
+            keybinds.push(DATE_TOGGLE_KEYBIND);
+        }
+    }
+
+    if (item && isUsageDateMode(item) && !isBarMode) {
+        if (options.includeHourFormat) {
+            keybinds.push(HOUR_FORMAT_TOGGLE_KEYBIND);
+        }
+
+        if (options.includeWeekday) {
+            keybinds.push(WEEKDAY_TOGGLE_KEYBIND);
+        }
+
+        if (options.includeTimezone) {
+            keybinds.push(TIMEZONE_KEYBIND);
+        }
+
+        if (options.includeLocale) {
+            keybinds.push(LOCALE_KEYBIND);
+        }
     }
 
     return keybinds;

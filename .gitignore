@@ -3,7 +3,7 @@ node_modules
 
 # output
 out
-docs
+typedoc
 *.tgz
 
 # code coverage

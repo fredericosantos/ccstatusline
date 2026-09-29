@@ -1,13 +1,13 @@
-import path from 'node:path';
 import * as fs from 'fs';
+import path from 'node:path';
 import { globSync } from 'tinyglobby';
 
 import type { BlockMetrics } from '../types';
 
 import { getClaudeConfigDir } from './claude-settings';
 import {
-    parseJsonlLine,
-    readJsonlLinesSync
+    iterateJsonlLinesSync,
+    parseJsonlLine
 } from './jsonl-lines';
 
 const statSync = fs.statSync;
@@ -183,9 +183,7 @@ function findMostRecentBlockStartTime(
 function getAllTimestampsFromFile(filePath: string): Date[] {
     const timestamps: Date[] = [];
     try {
-        const lines = readJsonlLinesSync(filePath);
-
-        for (const line of lines) {
+        for (const line of iterateJsonlLinesSync(filePath)) {
             const json = parseJsonlLine(line) as {
                 timestamp?: string;
                 isSidechain?: boolean;

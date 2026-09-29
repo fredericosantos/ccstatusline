@@ -1,16 +1,16 @@
 import type { ForegroundColorName } from 'chalk';
 import {
     Box,
-    type BoxProps,
     Text,
-    useInput
+    useInput,
+    type BoxProps
 } from 'ink';
 import {
-    type PropsWithChildren,
     useEffect,
     useMemo,
     useRef,
-    useState
+    useState,
+    type PropsWithChildren
 } from 'react';
 
 export interface ListEntry<V = string | number> {
@@ -39,7 +39,7 @@ export function List<V = string | number>({
     initialSelection = 0,
     showBackButton,
     color,
-    wrapNavigation = false,
+    wrapNavigation = true,
     ...boxProps
 }: ListProps<V>) {
     const [selectedIndex, setSelectedIndex] = useState(initialSelection);
