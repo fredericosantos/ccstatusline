@@ -22140,7 +22140,7 @@ function writeCachedWidth(sessionId, width, deps = defaultDeps2) {
 }
 
 // src/utils/terminal.ts
-var __dirname = "/Users/fsx/repos/ccstatusline-bars/src/utils";
+var __dirname = "/Users/fsx/repos/ccstatusline-style/src/utils";
 var PACKAGE_VERSION = "2.2.30";
 function getPackageVersion() {
   if (/^\d+\.\d+\.\d+/.test(PACKAGE_VERSION)) {
@@ -34399,7 +34399,7 @@ async function saveSettings(settings) {
   };
   await writeSettingsJson(settingsWithVersion, paths);
   try {
-    const { syncWidgetHooks } = await import("./hooks-qrh818vs.js");
+    const { syncWidgetHooks } = await import("./hooks-qbr51482.js");
     await syncWidgetHooks(settings);
   } catch {}
 }
@@ -34772,7 +34772,7 @@ async function installStatusLine({
   }
   const savedSettings = await loadSavedSettingsForHookSync();
   if (savedSettings) {
-    const { syncWidgetHooks } = await import("./hooks-qrh818vs.js");
+    const { syncWidgetHooks } = await import("./hooks-qbr51482.js");
     await syncWidgetHooks(savedSettings);
   }
 }
@@ -34790,7 +34790,7 @@ async function uninstallStatusLine() {
   }
   await saveInstallationMetadata(undefined);
   try {
-    const { removeManagedHooks } = await import("./hooks-qrh818vs.js");
+    const { removeManagedHooks } = await import("./hooks-qbr51482.js");
     await removeManagedHooks();
   } catch {}
 }
@@ -39411,6 +39411,13 @@ May be incorrect when multiple Claude Code sessions are running due to current C
 }
 
 // src/widgets/ModelEffort.ts
+function resolveOutputStyle(context) {
+  if (context.isPreview) {
+    return "concise";
+  }
+  const name = context.data?.output_style?.name;
+  return name && name.toLowerCase() !== "default" ? name : null;
+}
 var PILL_FILL = "#D97757";
 var PILL_TEXT = "#FFFFFF";
 
@@ -39421,7 +39428,7 @@ class ModelEffortWidget {
   getDescription() {
     return `Model name and thinking effort in one unit, e.g. (Sonnet|high), or with pill = true a filled capsule.
 ` + `pill = true draws a filled capsule (fillColor default Claude orange, textColor default white, separator default •, padding 1).
-` + 'Metadata: open / close (default "(" ")"), separator (default "|"), caps = rounded for Powerline caps, showMedium = true to show medium effort, shortName = true for the first word only.';
+` + 'Metadata: open / close (default "(" ")"), separator (default "|"), caps = rounded for Powerline caps, showMedium = true to show medium effort, outputStyle = true to add the output style when it is not "default" (e.g. Sonnet•high•concise), shortName = true for the first word only.';
   }
   getDisplayName() {
     return "Model + Effort";
@@ -39439,18 +39446,19 @@ class ModelEffortWidget {
       return null;
     }
     const effort = context.isPreview ? "high" : getEffortLabel(context, meta?.showMedium === "true");
+    const style = meta?.outputStyle === "true" ? resolveOutputStyle(context) : null;
     if (meta?.pill === "true") {
       const fill = resolveBarColor(meta.fillColor, PILL_FILL);
       const text = resolveBarColor(meta.textColor, PILL_TEXT);
       const pad = " ".repeat(Math.max(0, Math.min(3, Number.parseInt(meta.padding ?? "1", 10) || 0)));
       const sep = blendHex(text, fill, 0.35);
       const dot = meta.separator ?? "•";
-      const inner = colorText(name, text) + (effort ? colorText(dot, sep) + colorText(effort, text) : "");
+      const inner = [name, effort, style].filter(Boolean).map((part) => colorText(part ?? "", text)).join(colorText(dot, sep));
       return filledPill(`${pad}${inner}${pad}`, fill, text);
     }
     const rounded = meta?.caps === "rounded";
     const dim = (text) => dimText(item, settings, text);
-    return dim(rounded ? "" : meta?.open ?? "(") + name + (effort ? dim(meta?.separator ?? "|") + effort : "") + dim(rounded ? "" : meta?.close ?? ")");
+    return dim(rounded ? "" : meta?.open ?? "(") + [name, effort, style].filter(Boolean).join(dim(meta?.separator ?? "|")) + dim(rounded ? "" : meta?.close ?? ")");
   }
   supportsRawValue() {
     return false;

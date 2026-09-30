@@ -3,7 +3,7 @@ import {
   saveClaudeSettings,
   getExistingStatusLine,
   getWidget
-} from "./ccstatusline-4ppw59e1.js";
+} from "./ccstatusline-zd1dy3m4.js";
 
 // src/utils/hooks.ts
 var HOOK_TAG = "ccstatusline-managed";

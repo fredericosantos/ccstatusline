@@ -73,7 +73,7 @@ import {
   validateImportFile,
   applyImport,
   saveInstallationMetadata
-} from "./ccstatusline-4ppw59e1.js";
+} from "./ccstatusline-zd1dy3m4.js";
 import {
   advanceGlobalPowerlineThemeIndex,
   advanceGlobalSeparatorIndex

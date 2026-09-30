@@ -34,6 +34,34 @@ describe('ModelEffortWidget', () => {
         updateColorMap();
     });
 
+    describe('outputStyle', () => {
+        const withStyle = (name?: string): RenderContext => ({ data: { model: { id: 'claude-sonnet-4-6', display_name: 'Sonnet 4.6' }, effort: { level: 'high' }, ...(name ? { output_style: { name } } : {}) } });
+        const opts = { shortName: 'true', outputStyle: 'true' };
+
+        it('appends a non-default style after the effort, in the plain and pill forms', () => {
+            expect(strip(render(opts, withStyle('concise')) ?? '')).toBe('(Sonnet|high|concise)');
+            expect(strip(render({ ...opts, pill: 'true' }, withStyle('concise')) ?? '')).toBe('\ue0b6 Sonnet\u2022high\u2022concise \ue0b4');
+        });
+
+        it('hides the style when it is "default" (any case), missing, or the option is off', () => {
+            expect(strip(render(opts, withStyle('default')) ?? '')).toBe('(Sonnet|high)');
+            expect(strip(render(opts, withStyle('Default')) ?? '')).toBe('(Sonnet|high)');
+            expect(strip(render(opts, withStyle()) ?? '')).toBe('(Sonnet|high)');
+            expect(strip(render({ shortName: 'true' }, withStyle('concise')) ?? '')).toBe('(Sonnet|high)');
+        });
+
+        it('keeps the style when the effort is hidden (medium)', () => {
+            const ctx: RenderContext = { data: { model: { id: 'claude-sonnet-4-6', display_name: 'Sonnet 4.6' }, effort: { level: 'medium' }, output_style: { name: 'concise' } } };
+            expect(strip(render({ ...opts, pill: 'true' }, ctx) ?? '')).toBe('\ue0b6 Sonnet\u2022concise \ue0b4');
+        });
+
+        it('colours the style like the rest of the pill text and keeps widths consistent', () => {
+            const out = render({ ...opts, pill: 'true' }, withStyle('concise')) ?? '';
+            expect(out).toContain('\x1b[38;2;255;255;255mconcise\x1b[39m');
+            expect(getVisibleWidth(out)).toBe(getVisibleWidth(strip(out)));
+        });
+    });
+
     describe('pill', () => {
         const pill = { pill: 'true', shortName: 'true' };
 
