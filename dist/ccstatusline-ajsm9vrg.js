@@ -22140,7 +22140,7 @@ function writeCachedWidth(sessionId, width, deps = defaultDeps2) {
 }
 
 // src/utils/terminal.ts
-var __dirname = "/Users/fsx/repos/ccstatusline-style/src/utils";
+var __dirname = "/Users/fsx/repos/ccstatusline-case/src/utils";
 var PACKAGE_VERSION = "2.2.30";
 function getPackageVersion() {
   if (/^\d+\.\d+\.\d+/.test(PACKAGE_VERSION)) {
@@ -34399,7 +34399,7 @@ async function saveSettings(settings) {
   };
   await writeSettingsJson(settingsWithVersion, paths);
   try {
-    const { syncWidgetHooks } = await import("./hooks-qbr51482.js");
+    const { syncWidgetHooks } = await import("./hooks-3b6t996f.js");
     await syncWidgetHooks(settings);
   } catch {}
 }
@@ -34772,7 +34772,7 @@ async function installStatusLine({
   }
   const savedSettings = await loadSavedSettingsForHookSync();
   if (savedSettings) {
-    const { syncWidgetHooks } = await import("./hooks-qbr51482.js");
+    const { syncWidgetHooks } = await import("./hooks-3b6t996f.js");
     await syncWidgetHooks(savedSettings);
   }
 }
@@ -34790,7 +34790,7 @@ async function uninstallStatusLine() {
   }
   await saveInstallationMetadata(undefined);
   try {
-    const { removeManagedHooks } = await import("./hooks-qbr51482.js");
+    const { removeManagedHooks } = await import("./hooks-3b6t996f.js");
     await removeManagedHooks();
   } catch {}
 }
@@ -39411,12 +39411,21 @@ May be incorrect when multiple Claude Code sessions are running due to current C
 }
 
 // src/widgets/ModelEffort.ts
-function resolveOutputStyle(context) {
+function applyCase(text, mode) {
+  if (mode === "lower") {
+    return text.toLowerCase();
+  }
+  if (mode === "upper") {
+    return text.toUpperCase();
+  }
+  return mode === "capitalize" ? text.charAt(0).toUpperCase() + text.slice(1).toLowerCase() : text;
+}
+function resolveOutputStyle(context, caseMode) {
   if (context.isPreview) {
-    return "concise";
+    return applyCase("concise", caseMode);
   }
   const name = context.data?.output_style?.name;
-  return name && name.toLowerCase() !== "default" ? name : null;
+  return name && name.toLowerCase() !== "default" ? applyCase(name, caseMode) : null;
 }
 var PILL_FILL = "#D97757";
 var PILL_TEXT = "#FFFFFF";
@@ -39428,7 +39437,7 @@ class ModelEffortWidget {
   getDescription() {
     return `Model name and thinking effort in one unit, e.g. (Sonnet|high), or with pill = true a filled capsule.
 ` + `pill = true draws a filled capsule (fillColor default Claude orange, textColor default white, separator default •, padding 1).
-` + 'Metadata: open / close (default "(" ")"), separator (default "|"), caps = rounded for Powerline caps, showMedium = true to show medium effort, outputStyle = true to add the output style when it is not "default" (e.g. Sonnet•high•concise), shortName = true for the first word only.';
+` + 'Metadata: open / close (default "(" ")"), separator (default "|"), caps = rounded for Powerline caps, showMedium = true to show medium effort, outputStyle = true to add the output style when it is not "default" (e.g. Sonnet•high•concise), styleCase = lower | upper | capitalize to change the case of the style (unset keeps it as reported), shortName = true for the first word only.';
   }
   getDisplayName() {
     return "Model + Effort";
@@ -39446,7 +39455,7 @@ class ModelEffortWidget {
       return null;
     }
     const effort = context.isPreview ? "high" : getEffortLabel(context, meta?.showMedium === "true");
-    const style = meta?.outputStyle === "true" ? resolveOutputStyle(context) : null;
+    const style = meta?.outputStyle === "true" ? resolveOutputStyle(context, meta.styleCase) : null;
     if (meta?.pill === "true") {
       const fill = resolveBarColor(meta.fillColor, PILL_FILL);
       const text = resolveBarColor(meta.textColor, PILL_TEXT);

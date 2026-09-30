@@ -16,13 +16,24 @@ import {
     resolveBarColor
 } from './shared/progress-bar';
 
+// Generic case transform for the output style; anything other than lower / upper / capitalize leaves it as reported.
+function applyCase(text: string, mode: string | undefined): string {
+    if (mode === 'lower') {
+        return text.toLowerCase();
+    }
+    if (mode === 'upper') {
+        return text.toUpperCase();
+    }
+    return mode === 'capitalize' ? text.charAt(0).toUpperCase() + text.slice(1).toLowerCase() : text;
+}
+
 // The active output style (default, concise, ...). Hidden for "default" and when the status JSON has none.
-function resolveOutputStyle(context: RenderContext): string | null {
+function resolveOutputStyle(context: RenderContext, caseMode: string | undefined): string | null {
     if (context.isPreview) {
-        return 'concise';
+        return applyCase('concise', caseMode);
     }
     const name = context.data?.output_style?.name;
-    return name && name.toLowerCase() !== 'default' ? name : null;
+    return name && name.toLowerCase() !== 'default' ? applyCase(name, caseMode) : null;
 }
 
 const PILL_FILL = '#D97757';
@@ -35,7 +46,7 @@ export class ModelEffortWidget implements Widget {
     getDescription(): string {
         return 'Model name and thinking effort in one unit, e.g. (Sonnet|high), or with pill = true a filled capsule.\n'
             + 'pill = true draws a filled capsule (fillColor default Claude orange, textColor default white, separator default \u2022, padding 1).\n'
-            + 'Metadata: open / close (default "(" ")"), separator (default "|"), caps = rounded for Powerline caps, showMedium = true to show medium effort, outputStyle = true to add the output style when it is not "default" (e.g. Sonnet•high•concise), shortName = true for the first word only.';
+            + 'Metadata: open / close (default "(" ")"), separator (default "|"), caps = rounded for Powerline caps, showMedium = true to show medium effort, outputStyle = true to add the output style when it is not "default" (e.g. Sonnet•high•concise), styleCase = lower | upper | capitalize to change the case of the style (unset keeps it as reported), shortName = true for the first word only.';
     }
 
     getDisplayName(): string { return 'Model + Effort'; }
@@ -51,7 +62,7 @@ export class ModelEffortWidget implements Widget {
             return null;
         }
         const effort = context.isPreview ? 'high' : getEffortLabel(context, meta?.showMedium === 'true');
-        const style = meta?.outputStyle === 'true' ? resolveOutputStyle(context) : null;
+        const style = meta?.outputStyle === 'true' ? resolveOutputStyle(context, meta.styleCase) : null;
         if (meta?.pill === 'true') {
             const fill = resolveBarColor(meta.fillColor, PILL_FILL);
             const text = resolveBarColor(meta.textColor, PILL_TEXT);

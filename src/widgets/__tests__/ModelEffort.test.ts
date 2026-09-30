@@ -50,6 +50,19 @@ describe('ModelEffortWidget', () => {
             expect(strip(render({ shortName: 'true' }, withStyle('concise')) ?? '')).toBe('(Sonnet|high)');
         });
 
+        it('changes the case of the style only, via styleCase, without touching the model or effort', () => {
+            const ctx = withStyle('Concise');
+            expect(strip(render(opts, ctx) ?? '')).toBe('(Sonnet|high|Concise)');
+            expect(strip(render({ ...opts, styleCase: 'lower' }, ctx) ?? '')).toBe('(Sonnet|high|concise)');
+            expect(strip(render({ ...opts, styleCase: 'upper' }, ctx) ?? '')).toBe('(Sonnet|high|CONCISE)');
+            expect(strip(render({ ...opts, styleCase: 'capitalize' }, withStyle('eXPLANATORY')) ?? '')).toBe('(Sonnet|high|Explanatory)');
+            expect(strip(render({ ...opts, styleCase: 'bogus' }, ctx) ?? '')).toBe('(Sonnet|high|Concise)');
+        });
+
+        it('still hides "Default" in any case after the case transform option is set', () => {
+            expect(strip(render({ ...opts, styleCase: 'upper' }, withStyle('Default')) ?? '')).toBe('(Sonnet|high)');
+        });
+
         it('keeps the style when the effort is hidden (medium)', () => {
             const ctx: RenderContext = { data: { model: { id: 'claude-sonnet-4-6', display_name: 'Sonnet 4.6' }, effort: { level: 'medium' }, output_style: { name: 'concise' } } };
             expect(strip(render({ ...opts, pill: 'true' }, ctx) ?? '')).toBe('\ue0b6 Sonnet\u2022concise \ue0b4');
