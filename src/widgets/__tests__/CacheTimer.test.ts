@@ -14,7 +14,8 @@ import { DEFAULT_SETTINGS } from '../../types/Settings';
 import type { WidgetItem } from '../../types/Widget';
 import { CacheTimerWidget } from '../CacheTimer';
 
-const item = (extra: Partial<WidgetItem> = {}): WidgetItem => ({ id: 'cache-timer', type: 'cache-timer', ...extra });
+// Text mode unless a test asks for a bar; the widget itself defaults to the tiny bar
+const item = (extra: Partial<WidgetItem> = {}): WidgetItem => ({ id: 'cache-timer', type: 'cache-timer', ...extra, metadata: { display: 'text', ...extra.metadata } });
 const hidden: Partial<WidgetItem> = { metadata: { hide: 'empty' } };
 
 const isoAgo = (seconds: number): string => new Date(Date.now() - seconds * 1000).toISOString();
@@ -45,8 +46,8 @@ describe('CacheTimer widget', () => {
 
     it('renders the preview as a labeled or raw sample', () => {
         const widget = new CacheTimerWidget();
-        expect(widget.render(item(), { isPreview: true }, DEFAULT_SETTINGS)).toBe('Cache: 🟢 4:52');
-        expect(widget.render(item({ rawValue: true }), { isPreview: true }, DEFAULT_SETTINGS)).toBe('🟢 4:52');
+        expect(widget.render(item(), { isPreview: true }, DEFAULT_SETTINGS)).toBe('Cache: 🟢 5m');
+        expect(widget.render(item({ rawValue: true }), { isPreview: true }, DEFAULT_SETTINGS)).toBe('🟢 5m');
     });
 
     it('renders n/a when no transcript is available by default', () => {
@@ -82,7 +83,7 @@ describe('CacheTimer widget', () => {
         it(`renders the ${label} countdown with the ${icon} icon`, () => {
             const widget = new CacheTimerWidget();
             const out = widget.render(item(), transcriptContext([assistant(elapsed)]), DEFAULT_SETTINGS);
-            expect(out).toMatch(new RegExp(`^Cache: ${icon} \\d+:\\d{2}$`));
+            expect(out).toMatch(new RegExp(`^Cache: ${icon} \\d+m$`));
         });
     }
 
@@ -94,7 +95,7 @@ describe('CacheTimer widget', () => {
     it('renders a raw countdown without the label', () => {
         const widget = new CacheTimerWidget();
         const out = widget.render(item({ rawValue: true }), transcriptContext([assistant(10)]), DEFAULT_SETTINGS);
-        expect(out).toMatch(/^🟢 \d+:\d{2}$/);
+        expect(out).toMatch(/^🟢 \d+m$/);
     });
 
     it('ignores sidechain rows when deriving the cache state', () => {
@@ -140,8 +141,8 @@ describe('CacheTimer widget', () => {
 
     it('starts the countdown from rows with cache reads or cache writes', () => {
         const widget = new CacheTimerWidget();
-        expect(widget.render(item(), transcriptContext([assistantUsage(10, { cache_read_input_tokens: 1234 })]), DEFAULT_SETTINGS)).toMatch(/^Cache: 🟢 \d+:\d{2}$/);
-        expect(widget.render(item(), transcriptContext([assistantUsage(10, { cache_creation_input_tokens: 55 })]), DEFAULT_SETTINGS)).toMatch(/^Cache: 🟢 \d+:\d{2}$/);
+        expect(widget.render(item(), transcriptContext([assistantUsage(10, { cache_read_input_tokens: 1234 })]), DEFAULT_SETTINGS)).toMatch(/^Cache: 🟢 \d+m$/);
+        expect(widget.render(item(), transcriptContext([assistantUsage(10, { cache_creation_input_tokens: 55 })]), DEFAULT_SETTINGS)).toMatch(/^Cache: 🟢 \d+m$/);
     });
 
     it('finds the trailing record even when it exceeds the initial 32 KiB tail read', () => {
@@ -152,13 +153,13 @@ describe('CacheTimer widget', () => {
         expect(widget.render(item(), transcriptContext([assistant(400), bigUser]), DEFAULT_SETTINGS)).toBe('Cache: 🔥 HOT');
         // ...and an oversized trailing assistant row must still drive the countdown.
         const bigAssistant = JSON.stringify({ type: 'assistant', timestamp: isoAgo(10), content: 'x'.repeat(64 * 1024) });
-        expect(widget.render(item(), transcriptContext([bigAssistant]), DEFAULT_SETTINGS)).toMatch(/^Cache: 🟢 \d+:\d{2}$/);
+        expect(widget.render(item(), transcriptContext([bigAssistant]), DEFAULT_SETTINGS)).toMatch(/^Cache: 🟢 \d+m$/);
     });
 
     it('finds a valid trailing record larger than 1 MiB', () => {
         const widget = new CacheTimerWidget();
         const huge = JSON.stringify({ type: 'assistant', timestamp: isoAgo(10), message: { usage: { cache_read_input_tokens: 42 } }, content: 'x'.repeat(2 * 1024 * 1024) });
-        expect(widget.render(item(), transcriptContext([huge]), DEFAULT_SETTINGS)).toMatch(/^Cache: 🟢 \d+:\d{2}$/);
+        expect(widget.render(item(), transcriptContext([huge]), DEFAULT_SETTINGS)).toMatch(/^Cache: 🟢 \d+m$/);
     });
 
     it('renders n/a after scanning a file with no parseable records', () => {
@@ -177,34 +178,36 @@ describe('CacheTimer widget', () => {
         const widget = new CacheTimerWidget();
         expect(widget.getCustomKeybinds()).toEqual([
             { key: 't', label: '(t)tl', action: 'toggle-ttl' },
+            { key: 'p', label: '(p)rogress bar / text', action: 'toggle-text' },
+            { key: 'b', label: '(b)ar style', action: 'cycle-bar-style' },
             { key: 'g', label: '(g)lyph', action: 'edit-symbol-override' }
         ]);
         expect(widget.getHideableStates().map(state => state.key)).toEqual(['empty']);
         expect(widget.handleEditorAction('unknown', item())).toBeNull();
     });
 
-    it('leaves the editor unannotated at default settings', () => {
+    it('annotates the editor with the display width only at default settings', () => {
         const widget = new CacheTimerWidget();
         expect(widget.getEditorDisplay(item()).displayText).toBe('Cache Timer');
-        expect(widget.getEditorDisplay(item()).modifierText).toBeUndefined();
-        expect(widget.getEditorDisplay(item(hidden)).modifierText).toBeUndefined();
+        expect(widget.getEditorDisplay(item()).modifierText).toBe('(text)');
+        expect(widget.getEditorDisplay(item(hidden)).modifierText).toBe('(text)');
     });
 
     it('renders custom state glyphs from metadata overrides', () => {
         const widget = new CacheTimerWidget();
         expect(widget.render(item({ metadata: { symbolCold: 'X' } }), transcriptContext([assistant(400)]), DEFAULT_SETTINGS)).toBe('Cache: X COLD');
-        expect(widget.render(item({ metadata: { symbolFresh: '*' } }), transcriptContext([assistant(10)]), DEFAULT_SETTINGS)).toMatch(/^Cache: \* \d+:\d{2}$/);
+        expect(widget.render(item({ metadata: { symbolFresh: '*' } }), transcriptContext([assistant(10)]), DEFAULT_SETTINGS)).toMatch(/^Cache: \* \d+m$/);
         expect(widget.render(item({ metadata: { symbolHot: '>' } }), transcriptContext([assistant(60), pendingUser]), DEFAULT_SETTINGS)).toBe('Cache: > HOT');
     });
 
     it('drops the glyph and its space when an override is blanked', () => {
         const widget = new CacheTimerWidget();
-        expect(widget.render(item({ metadata: { symbolFresh: '' } }), transcriptContext([assistant(10)]), DEFAULT_SETTINGS)).toMatch(/^Cache: \d+:\d{2}$/);
+        expect(widget.render(item({ metadata: { symbolFresh: '' } }), transcriptContext([assistant(10)]), DEFAULT_SETTINGS)).toMatch(/^Cache: \d+m$/);
     });
 
     it('reflects a custom fresh glyph in the preview', () => {
         const widget = new CacheTimerWidget();
-        expect(widget.render(item({ metadata: { symbolFresh: '#' } }), { isPreview: true }, DEFAULT_SETTINGS)).toBe('Cache: # 4:52');
+        expect(widget.render(item({ metadata: { symbolFresh: '#' } }), { isPreview: true }, DEFAULT_SETTINGS)).toBe('Cache: # 5m');
     });
 
     it('extends the countdown window when the TTL is set to 1 hour', () => {
@@ -212,7 +215,7 @@ describe('CacheTimer widget', () => {
         // 600s in is COLD at the default 5-minute TTL...
         expect(widget.render(item(), transcriptContext([assistant(600)]), DEFAULT_SETTINGS)).toBe('Cache: ❄️ COLD');
         // ...but still fresh under a 1-hour TTL.
-        expect(widget.render(item({ metadata: { ttlSeconds: '3600' } }), transcriptContext([assistant(600)]), DEFAULT_SETTINGS)).toMatch(/^Cache: 🟢 \d+:\d{2}$/);
+        expect(widget.render(item({ metadata: { ttlSeconds: '3600' } }), transcriptContext([assistant(600)]), DEFAULT_SETTINGS)).toMatch(/^Cache: 🟢 \d+m$/);
     });
 
     it('falls back to the default TTL for a malformed value', () => {
@@ -230,7 +233,40 @@ describe('CacheTimer widget', () => {
 
     it('annotates the editor with a non-default TTL', () => {
         const widget = new CacheTimerWidget();
-        expect(widget.getEditorDisplay(item({ metadata: { ttlSeconds: '3600' } })).modifierText).toBe('(ttl 1h)');
-        expect(widget.getEditorDisplay(item({ metadata: { ttlSeconds: '3600', hide: 'empty' } })).modifierText).toBe('(ttl 1h)');
+        expect(widget.getEditorDisplay(item({ metadata: { ttlSeconds: '3600' } })).modifierText).toBe('(ttl 1h, text)');
+        expect(widget.getEditorDisplay(item({ metadata: { ttlSeconds: '3600', hide: 'empty' } })).modifierText).toBe('(ttl 1h, text)');
+    });
+
+    // Colour is off under test, so the blocks style shows the fill as █ cells out of three
+    it('defaults to a three-cell bar and toggles to text', () => {
+        const widget = new CacheTimerWidget();
+        const bare: WidgetItem = { id: 'c', type: 'cache-timer', metadata: { ttlSeconds: '3600' } };
+        expect(widget.render(bare, transcriptContext([assistant(10)]), DEFAULT_SETTINGS)).toBe('███');
+        const text = widget.handleEditorAction('toggle-text', bare) ?? bare;
+        expect(text.metadata?.display).toBe('text');
+        expect(widget.handleEditorAction('toggle-text', text)?.metadata?.display).toBeUndefined();
+    });
+
+    it('drains 3, 2, 1 cells by thirds of the TTL, shows minutes under 20, and fills red when cold', () => {
+        const widget = new CacheTimerWidget();
+        const bar = item({ metadata: { display: 'bar', ttlSeconds: '3600', label: 'cache' } });
+        const at = (elapsed: number): string => widget.render(bar, transcriptContext([assistant(elapsed)]), DEFAULT_SETTINGS) ?? '';
+        expect(at(60)).toBe('cache ███');
+        expect(at(1500)).toBe('cache ██░');
+        expect(at(2500)).toBe('cache █░░ 19m');
+        expect(at(4000)).toBe('cache ███');
+        expect(widget.render(bar, transcriptContext([assistant(10), pendingUser]), DEFAULT_SETTINGS)).toBe('cache ███');
+    });
+
+    it('prefers prompt_cache.expires_at and ttl over the transcript estimate', () => {
+        const widget = new CacheTimerWidget();
+        const bar = item({ metadata: { display: 'bar', ttlSeconds: '300' } });
+        const ctx = (expires: number): RenderContext => {
+            const base = transcriptContext([assistant(10)]);
+            return { data: { ...base.data, prompt_cache: { warm: true, ttl: '1h', expires_at: expires } } };
+        };
+        const now = Date.now() / 1000;
+        expect(widget.render(bar, ctx(now + 3000), DEFAULT_SETTINGS)).toBe('███');
+        expect(widget.render(bar, ctx(now + 900), DEFAULT_SETTINGS)).toBe('█░░ 15m');
     });
 });

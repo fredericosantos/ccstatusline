@@ -71,6 +71,11 @@ export const StatusJSONSchema = z.looseObject({
         original_cwd: z.string().optional(),
         original_branch: z.string().optional()
     }).nullable().optional(),
+    prompt_cache: z.object({
+        warm: z.boolean().optional(),
+        ttl: z.string().optional(),
+        expires_at: z.number().nullable().optional()
+    }).optional(),
     rate_limits: z.object({
         five_hour: RateLimitPeriodSchema.optional(),
         seven_day: RateLimitPeriodSchema.optional(),

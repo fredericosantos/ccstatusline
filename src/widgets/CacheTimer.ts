@@ -15,6 +15,11 @@ import { CACHE_EMPTY_HIDEABLE_STATE } from './shared/cache-scope';
 import { makeModifierText } from './shared/editor-display';
 import { isHidden } from './shared/hideable';
 import { removeMetadataKeys } from './shared/metadata';
+import {
+    BAR_COLORS,
+    barOptionsFor,
+    makeStyledBar
+} from './shared/progress-bar';
 import { formatRawOrLabeledValue } from './shared/raw-or-labeled';
 import {
     getSlotSymbol,
@@ -22,6 +27,7 @@ import {
     renderSymbolSlotsEditor,
     type SymbolSlot
 } from './shared/symbol-override';
+import { cycleBarStyle } from './shared/usage-display';
 
 // Anthropic's ephemeral prompt cache defaults to a 5-minute TTL, but Claude Code
 // also writes 1-hour breakpoints (cache_control ttl: "1h") for the stable prefix.
@@ -32,6 +38,10 @@ const TTL_METADATA_KEY = 'ttlSeconds';
 const DEFAULT_TTL_SECONDS = 300;
 const TTL_OPTIONS = [300, 3600] as const; // 5 minutes, 1 hour
 const TOGGLE_TTL_ACTION = 'toggle-ttl';
+const TOGGLE_TEXT_ACTION = 'toggle-text';
+
+// Bar by default (three dots); display 'text' keeps the original emoji countdown.
+const isText = (item: WidgetItem): boolean => item.metadata?.display === 'text';
 
 const SAFETY_MARGIN = 5; // display as COLD 5s before actual expiry
 
@@ -207,9 +217,8 @@ function formatCountdown(remaining: number): string {
     if (remaining <= 0) {
         return 'COLD';
     }
-    const m = Math.floor(remaining / 60);
-    const s = Math.floor(remaining % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    // Whole minutes, rounded up so a warm cache never reads 0m
+    return `${Math.ceil(remaining / 60)}m`;
 }
 
 // The glyph for the current drain state (excluding HOT, handled in render).
@@ -232,9 +241,32 @@ function withGlyph(symbol: string, text: string): string {
     return symbol.length > 0 ? `${symbol} ${text}` : text;
 }
 
+// Bar mode: three dots that drain with the cache, colour by thirds of the TTL (green, yellow, red), and a
+// full red bar once cold. The number only appears under 20 minutes.
+const BAR_CELLS = 3;
+const SHOW_MINUTES_BELOW = 1200;
+// Anthropic's olive (#788C5D) lifted a quarter of the way to white
+const OK_COLOR = '#9AA986';
+
+function renderBar(item: WidgetItem, settings: Settings, filled: number, color: string, text = ''): string {
+    const bar = makeStyledBar((filled / BAR_CELLS) * 100, BAR_CELLS, { ...barOptionsFor(item, settings), fill: color });
+    return [item.metadata?.label, bar, text].filter(Boolean).join(' ');
+}
+
+// remaining <= 0 is cold
+function renderRemaining(item: WidgetItem, settings: Settings, remaining: number, ttlSeconds: number): string {
+    if (remaining <= 0) {
+        return renderBar(item, settings, BAR_CELLS, BAR_COLORS.danger);
+    }
+    // Fractional fill: the boundary dot fades from track to fill, like the ctx bar; colour steps by thirds
+    const share = Math.min(1, remaining / ttlSeconds);
+    const color = share > 2 / 3 ? OK_COLOR : share > 1 / 3 ? BAR_COLORS.warn : BAR_COLORS.danger;
+    return renderBar(item, settings, share * BAR_CELLS, color, remaining < SHOW_MINUTES_BELOW ? formatCountdown(remaining) : '');
+}
+
 export class CacheTimerWidget implements Widget {
     getDefaultColor(): string { return 'brightCyan'; }
-    getDescription(): string { return 'Shows time remaining on the prompt cache TTL (5m by default, 1h configurable)'; }
+    getDescription(): string { return 'Shows time remaining on the prompt cache TTL as a draining progress bar (5m by default, 1h configurable)'; }
     getDisplayName(): string { return 'Cache Timer'; }
     getCategory(): string { return 'Session'; }
 
@@ -245,6 +277,7 @@ export class CacheTimerWidget implements Widget {
         if (ttlSeconds !== DEFAULT_TTL_SECONDS) {
             modifiers.push(`ttl ${formatTtlLabel(ttlSeconds)}`);
         }
+        modifiers.push(isText(item) ? 'text' : 'bar');
         return {
             displayText: this.getDisplayName(),
             modifierText: makeModifierText(modifiers)
@@ -260,34 +293,59 @@ export class CacheTimerWidget implements Widget {
             return cycleTtl(item);
         }
 
+        if (action === TOGGLE_TEXT_ACTION) {
+            return isText(item)
+                ? removeMetadataKeys(item, ['display'])
+                : { ...item, metadata: { ...item.metadata, display: 'text' } };
+        }
+        if (action === 'cycle-bar-style') {
+            return cycleBarStyle(item);
+        }
+
         return null;
     }
 
-    render(item: WidgetItem, context: RenderContext, _settings: Settings): string | null {
+    render(item: WidgetItem, context: RenderContext, settings: Settings): string | null {
         const hideWhenEmpty = isHidden(item, CACHE_EMPTY_HIDEABLE_STATE.key);
 
+        const bar = !isText(item);
+
         if (context.isPreview) {
-            return formatRawOrLabeledValue(item, 'Cache: ', withGlyph(getSlotSymbol(item, FRESH_SLOT), '4:52'));
+            if (bar) {
+                return renderBar(item, settings, BAR_CELLS, OK_COLOR);
+            }
+            return formatRawOrLabeledValue(item, 'Cache: ', withGlyph(getSlotSymbol(item, FRESH_SLOT), '5m'));
         }
 
         const transcriptPath = context.data?.transcript_path;
         if (!transcriptPath) {
-            return hideWhenEmpty ? null : formatRawOrLabeledValue(item, 'Cache: ', 'n/a');
+            return hideWhenEmpty ? null : bar ? renderBar(item, settings, 0, OK_COLOR) : formatRawOrLabeledValue(item, 'Cache: ', 'n/a');
         }
 
         const state = getTranscriptState(transcriptPath);
 
         if (state.isWorking) {
+            if (bar) {
+                return renderBar(item, settings, BAR_CELLS, OK_COLOR);
+            }
             return formatRawOrLabeledValue(item, 'Cache: ', withGlyph(getSlotSymbol(item, HOT_SLOT), 'HOT'));
         }
 
-        const { lastAssistant } = state;
-        if (!lastAssistant) {
-            return hideWhenEmpty ? null : formatRawOrLabeledValue(item, 'Cache: ', 'n/a');
+        // Claude Code (v2.1.251+) reports the real expiry and TTL; the transcript estimate is the fallback
+        const cache = context.data?.prompt_cache;
+        let ttlSeconds = getTtlSeconds(item);
+        let remaining: number;
+        if (typeof cache?.expires_at === 'number') {
+            ttlSeconds = cache.ttl === '1h' ? 3600 : 300;
+            remaining = cache.expires_at - Date.now() / 1000;
+        } else if (state.lastAssistant) {
+            remaining = getRemainingSeconds(state.lastAssistant, ttlSeconds);
+        } else {
+            return hideWhenEmpty ? null : bar ? renderBar(item, settings, 0, OK_COLOR) : formatRawOrLabeledValue(item, 'Cache: ', 'n/a');
         }
-
-        const ttlSeconds = getTtlSeconds(item);
-        const remaining = getRemainingSeconds(lastAssistant, ttlSeconds);
+        if (bar) {
+            return renderRemaining(item, settings, remaining, ttlSeconds);
+        }
         const glyph = getStateSymbol(item, remaining, ttlSeconds);
 
         return formatRawOrLabeledValue(item, 'Cache: ', withGlyph(glyph, formatCountdown(remaining)));
@@ -296,6 +354,8 @@ export class CacheTimerWidget implements Widget {
     getCustomKeybinds(): CustomKeybind[] {
         return [
             { key: 't', label: '(t)tl', action: TOGGLE_TTL_ACTION },
+            { key: 'p', label: '(p)rogress bar / text', action: TOGGLE_TEXT_ACTION },
+            { key: 'b', label: '(b)ar style', action: 'cycle-bar-style' },
             getSymbolKeybind()
         ];
     }
