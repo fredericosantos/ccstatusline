@@ -3,6 +3,7 @@ import {
   source_default,
   string,
   number,
+  boolean,
   object,
   looseObject,
   union,
@@ -30,7 +31,7 @@ import {
   initConfigPath,
   loadSettings,
   saveSettings
-} from "./ccstatusline-ajsm9vrg.js";
+} from "./ccstatusline-z7j97st8.js";
 import {
   advanceGlobalPowerlineThemeIndex,
   advanceGlobalSeparatorIndex
@@ -102,6 +103,11 @@ var StatusJSONSchema = looseObject({
     original_cwd: string().optional(),
     original_branch: string().optional()
   }).nullable().optional(),
+  prompt_cache: object({
+    warm: boolean().optional(),
+    ttl: string().optional(),
+    expires_at: number().nullable().optional()
+  }).optional(),
   rate_limits: object({
     five_hour: RateLimitPeriodSchema.optional(),
     seven_day: RateLimitPeriodSchema.optional(),
@@ -594,7 +600,7 @@ async function main() {
       const { updatemessage, ...newSettings } = settings;
       await saveSettings(newSettings);
     }
-    const { runTUI } = await import("./index-vccrbdgb.js");
+    const { runTUI } = await import("./index-3em3dp5y.js");
     runTUI();
   }
 }

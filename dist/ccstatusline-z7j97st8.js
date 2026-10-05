@@ -16829,7 +16829,7 @@ var string2 = (params) => {
 };
 var integer = /^-?\d+$/;
 var number2 = /^-?\d+(?:\.\d+)?$/;
-var boolean = /^(?:true|false)$/i;
+var boolean2 = /^(?:true|false)$/i;
 var lowercase = /^[^A-Z]*$/;
 var uppercase = /^[^a-z]*$/;
 
@@ -17763,7 +17763,7 @@ var $ZodNumberFormat = /* @__PURE__ */ $constructor("$ZodNumberFormat", (inst, d
 });
 var $ZodBoolean = /* @__PURE__ */ $constructor("$ZodBoolean", (inst, def) => {
   $ZodType.init(inst, def);
-  inst._zod.pattern = boolean;
+  inst._zod.pattern = boolean2;
   inst._zod.parse = (payload, _ctx) => {
     if (def.coerce)
       try {
@@ -21173,7 +21173,7 @@ var ZodBoolean = /* @__PURE__ */ $constructor("ZodBoolean", (inst, def) => {
   ZodType.init(inst, def);
   inst._zod.processJSONSchema = (ctx, json, params) => booleanProcessor(inst, ctx, json, params);
 });
-function boolean2(params) {
+function boolean(params) {
   return _boolean(ZodBoolean, params);
 }
 var ZodUnknown = /* @__PURE__ */ $constructor("ZodUnknown", (inst, def) => {
@@ -21715,7 +21715,7 @@ var CachedClaudeStatusSchema = object({
     startMs: number(),
     endMs: number().nullable()
   })).nullable().optional(),
-  incidentsQueried: boolean2()
+  incidentsQueried: boolean()
 });
 var memoryCache = null;
 function ensureCacheDirExists() {
@@ -22140,7 +22140,7 @@ function writeCachedWidth(sessionId, width, deps = defaultDeps2) {
 }
 
 // src/utils/terminal.ts
-var __dirname = "/Users/fsx/repos/ccstatusline-case/src/utils";
+var __dirname = "/Users/fsx/repos/ccstatusline/src/utils";
 var PACKAGE_VERSION = "2.2.30";
 function getPackageVersion() {
   if (/^\d+\.\d+\.\d+/.test(PACKAGE_VERSION)) {
@@ -33828,14 +33828,14 @@ var GlobalNumberFormatSchema = object({
 
 // src/types/PowerlineConfig.ts
 var PowerlineConfigSchema = object({
-  enabled: boolean2().default(false),
+  enabled: boolean().default(false),
   separators: array(string()).default([""]),
-  separatorInvertBackground: array(boolean2()).default([false]),
+  separatorInvertBackground: array(boolean()).default([false]),
   startCaps: array(string()).default([]),
   endCaps: array(string()).default([]),
   theme: string().optional(),
-  autoAlign: boolean2().default(false),
-  continueThemeAcrossLines: boolean2().default(false)
+  autoAlign: boolean().default(false),
+  continueThemeAcrossLines: boolean().default(false)
 });
 
 // src/types/Widget.ts
@@ -33844,19 +33844,19 @@ var WidgetItemSchema = object({
   type: string(),
   color: string().optional(),
   backgroundColor: string().optional(),
-  bold: boolean2().optional(),
-  dim: union([boolean2(), literal("parens")]).optional(),
+  bold: boolean().optional(),
+  dim: union([boolean(), literal("parens")]).optional(),
   numberFormat: NumberFormatSchema.optional(),
   character: string().optional(),
-  rawValue: boolean2().optional(),
+  rawValue: boolean().optional(),
   customText: string().optional(),
   customSymbol: string().optional(),
   commandPath: string().optional(),
   maxWidth: number().optional(),
-  preserveColors: boolean2().optional(),
+  preserveColors: boolean().optional(),
   timeout: number().optional(),
-  merge: union([boolean2(), literal("no-padding")]).optional(),
-  excludeFromAutoAlign: boolean2().optional(),
+  merge: union([boolean(), literal("no-padding")]).optional(),
+  excludeFromAutoAlign: boolean().optional(),
   metadata: record(string(), string()).optional()
 });
 
@@ -33888,10 +33888,10 @@ var SettingsSchema_v1 = object({
   colorLevel: ColorLevelSchema.optional(),
   defaultSeparator: string().optional(),
   defaultPadding: string().optional(),
-  inheritSeparatorColors: boolean2().optional(),
+  inheritSeparatorColors: boolean().optional(),
   overrideBackgroundColor: string().optional(),
   overrideForegroundColor: string().optional(),
-  globalBold: boolean2().optional()
+  globalBold: boolean().optional()
 });
 var SettingsSchema = object({
   version: number().default(CURRENT_VERSION),
@@ -33914,15 +33914,15 @@ var SettingsSchema = object({
   defaultSeparator: string().optional(),
   defaultPadding: string().optional(),
   defaultPaddingSide: DefaultPaddingSideSchema.default("both"),
-  inheritSeparatorColors: boolean2().default(false),
+  inheritSeparatorColors: boolean().default(false),
   overrideBackgroundColor: string().optional(),
   overrideForegroundColor: string().optional(),
-  globalBold: boolean2().default(false),
+  globalBold: boolean().default(false),
   progressBarStyle: BarStyleSchema.optional(),
   progressBarFillColor: string().optional(),
   progressBarTrackColor: string().optional(),
   progressBarSymbol: string().optional(),
-  progressBarEscalate: boolean2().optional(),
+  progressBarEscalate: boolean().optional(),
   progressTextEscalation: array(unknown()).optional(),
   progressPaceColors: record(string(), unknown()).optional(),
   progressBarMin: number().optional(),
@@ -33931,7 +33931,7 @@ var SettingsSchema = object({
   gitCacheTtlSeconds: number().min(0).max(60).default(5),
   terminalWidthCacheTtlSeconds: number().min(0).max(300).default(5),
   customCommandCacheTtlSeconds: number().min(0).max(60).default(0),
-  minimalistMode: boolean2().default(false),
+  minimalistMode: boolean().default(false),
   powerline: PowerlineConfigSchema.default({
     enabled: false,
     separators: [""],
@@ -34399,7 +34399,7 @@ async function saveSettings(settings) {
   };
   await writeSettingsJson(settingsWithVersion, paths);
   try {
-    const { syncWidgetHooks } = await import("./hooks-3b6t996f.js");
+    const { syncWidgetHooks } = await import("./hooks-ja4n9t4f.js");
     await syncWidgetHooks(settings);
   } catch {}
 }
@@ -34772,7 +34772,7 @@ async function installStatusLine({
   }
   const savedSettings = await loadSavedSettingsForHookSync();
   if (savedSettings) {
-    const { syncWidgetHooks } = await import("./hooks-3b6t996f.js");
+    const { syncWidgetHooks } = await import("./hooks-ja4n9t4f.js");
     await syncWidgetHooks(savedSettings);
   }
 }
@@ -34790,7 +34790,7 @@ async function uninstallStatusLine() {
   }
   await saveInstallationMetadata(undefined);
   try {
-    const { removeManagedHooks } = await import("./hooks-3b6t996f.js");
+    const { removeManagedHooks } = await import("./hooks-ja4n9t4f.js");
     await removeManagedHooks();
   } catch {}
 }
@@ -34827,7 +34827,7 @@ async function setRefreshInterval(interval) {
   }
   await saveClaudeSettings(settings);
 }
-var VoiceConfigSchema = object({ enabled: boolean2().optional() });
+var VoiceConfigSchema = object({ enabled: boolean().optional() });
 function getLayeredSettingsCandidatePathsByPriority(cwd) {
   const userDir = getClaudeConfigDir();
   const projectDir = path9.join(cwd, ".claude");
@@ -34880,7 +34880,7 @@ function getVoiceConfig(cwd = process.cwd()) {
   }
   return anyFileExisted ? { enabled: false } : null;
 }
-var SandboxConfigSchema = object({ enabled: boolean2().optional() });
+var SandboxConfigSchema = object({ enabled: boolean().optional() });
 function tryReadSandboxLayer(filePath) {
   let content;
   try {
@@ -35014,7 +35014,7 @@ var CachedUsageDataSchema = object({
   weeklyOpusResetAt: string().nullable().optional(),
   fableUsage: number().nullable().optional(),
   fableResetAt: string().nullable().optional(),
-  extraUsageEnabled: boolean2().nullable().optional(),
+  extraUsageEnabled: boolean().nullable().optional(),
   extraUsageLimit: number().nullable().optional(),
   extraUsageUsed: number().nullable().optional(),
   extraUsageUtilization: number().nullable().optional(),
@@ -35039,7 +35039,7 @@ var UsageApiResponseSchema = looseObject({
   seven_day_opus: UsageApiBucketSchema,
   limits: array(UsageApiLimitSchema).nullable().optional(),
   extra_usage: looseObject({
-    is_enabled: boolean2().nullable().optional(),
+    is_enabled: boolean().nullable().optional(),
     monthly_limit: number().nullable().optional(),
     used_credits: number().nullable().optional(),
     utilization: number().nullable().optional(),
@@ -41932,6 +41932,8 @@ var TTL_METADATA_KEY = "ttlSeconds";
 var DEFAULT_TTL_SECONDS = 300;
 var TTL_OPTIONS = [300, 3600];
 var TOGGLE_TTL_ACTION = "toggle-ttl";
+var TOGGLE_TEXT_ACTION = "toggle-text";
+var isText = (item) => item.metadata?.display === "text";
 var SAFETY_MARGIN = 5;
 var HOT_SLOT = { id: "symbolHot", label: "Working", defaultSymbol: "\uD83D\uDD25" };
 var FRESH_SLOT = { id: "symbolFresh", label: "Fresh", defaultSymbol: "\uD83D\uDFE2" };
@@ -42045,9 +42047,7 @@ function formatCountdown(remaining) {
   if (remaining <= 0) {
     return "COLD";
   }
-  const m = Math.floor(remaining / 60);
-  const s = Math.floor(remaining % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  return `${Math.ceil(remaining / 60)}m`;
 }
 function getStateSymbol(item, remaining, ttlSeconds) {
   if (remaining <= 0) {
@@ -42065,13 +42065,28 @@ function getStateSymbol(item, remaining, ttlSeconds) {
 function withGlyph(symbol, text) {
   return symbol.length > 0 ? `${symbol} ${text}` : text;
 }
+var BAR_CELLS = 3;
+var SHOW_MINUTES_BELOW = 1200;
+var OK_COLOR = "#9AA986";
+function renderBar(item, settings, filled, color, text = "") {
+  const bar = makeStyledBar(filled / BAR_CELLS * 100, BAR_CELLS, { ...barOptionsFor(item, settings), fill: color });
+  return [item.metadata?.label, bar, text].filter(Boolean).join(" ");
+}
+function renderRemaining(item, settings, remaining, ttlSeconds) {
+  if (remaining <= 0) {
+    return renderBar(item, settings, BAR_CELLS, BAR_COLORS.danger);
+  }
+  const share = Math.min(1, remaining / ttlSeconds);
+  const color = share > 2 / 3 ? OK_COLOR : share > 1 / 3 ? BAR_COLORS.warn : BAR_COLORS.danger;
+  return renderBar(item, settings, share * BAR_CELLS, color, remaining < SHOW_MINUTES_BELOW ? formatCountdown(remaining) : "");
+}
 
 class CacheTimerWidget {
   getDefaultColor() {
     return "brightCyan";
   }
   getDescription() {
-    return "Shows time remaining on the prompt cache TTL (5m by default, 1h configurable)";
+    return "Shows time remaining on the prompt cache TTL as a draining progress bar (5m by default, 1h configurable)";
   }
   getDisplayName() {
     return "Cache Timer";
@@ -42085,6 +42100,7 @@ class CacheTimerWidget {
     if (ttlSeconds !== DEFAULT_TTL_SECONDS) {
       modifiers.push(`ttl ${formatTtlLabel(ttlSeconds)}`);
     }
+    modifiers.push(isText(item) ? "text" : "bar");
     return {
       displayText: this.getDisplayName(),
       modifierText: makeModifierText(modifiers)
@@ -42097,33 +42113,56 @@ class CacheTimerWidget {
     if (action === TOGGLE_TTL_ACTION) {
       return cycleTtl(item);
     }
+    if (action === TOGGLE_TEXT_ACTION) {
+      return isText(item) ? removeMetadataKeys(item, ["display"]) : { ...item, metadata: { ...item.metadata, display: "text" } };
+    }
+    if (action === "cycle-bar-style") {
+      return cycleBarStyle(item);
+    }
     return null;
   }
-  render(item, context, _settings) {
+  render(item, context, settings) {
     const hideWhenEmpty = isHidden(item, CACHE_EMPTY_HIDEABLE_STATE.key);
+    const bar = !isText(item);
     if (context.isPreview) {
-      return formatRawOrLabeledValue(item, "Cache: ", withGlyph(getSlotSymbol(item, FRESH_SLOT), "4:52"));
+      if (bar) {
+        return renderBar(item, settings, BAR_CELLS, OK_COLOR);
+      }
+      return formatRawOrLabeledValue(item, "Cache: ", withGlyph(getSlotSymbol(item, FRESH_SLOT), "5m"));
     }
     const transcriptPath = context.data?.transcript_path;
     if (!transcriptPath) {
-      return hideWhenEmpty ? null : formatRawOrLabeledValue(item, "Cache: ", "n/a");
+      return hideWhenEmpty ? null : bar ? renderBar(item, settings, 0, OK_COLOR) : formatRawOrLabeledValue(item, "Cache: ", "n/a");
     }
     const state = getTranscriptState(transcriptPath);
     if (state.isWorking) {
+      if (bar) {
+        return renderBar(item, settings, BAR_CELLS, OK_COLOR);
+      }
       return formatRawOrLabeledValue(item, "Cache: ", withGlyph(getSlotSymbol(item, HOT_SLOT), "HOT"));
     }
-    const { lastAssistant } = state;
-    if (!lastAssistant) {
-      return hideWhenEmpty ? null : formatRawOrLabeledValue(item, "Cache: ", "n/a");
+    const cache = context.data?.prompt_cache;
+    let ttlSeconds = getTtlSeconds(item);
+    let remaining;
+    if (typeof cache?.expires_at === "number") {
+      ttlSeconds = cache.ttl === "1h" ? 3600 : 300;
+      remaining = cache.expires_at - Date.now() / 1000;
+    } else if (state.lastAssistant) {
+      remaining = getRemainingSeconds(state.lastAssistant, ttlSeconds);
+    } else {
+      return hideWhenEmpty ? null : bar ? renderBar(item, settings, 0, OK_COLOR) : formatRawOrLabeledValue(item, "Cache: ", "n/a");
     }
-    const ttlSeconds = getTtlSeconds(item);
-    const remaining = getRemainingSeconds(lastAssistant, ttlSeconds);
+    if (bar) {
+      return renderRemaining(item, settings, remaining, ttlSeconds);
+    }
     const glyph = getStateSymbol(item, remaining, ttlSeconds);
     return formatRawOrLabeledValue(item, "Cache: ", withGlyph(glyph, formatCountdown(remaining)));
   }
   getCustomKeybinds() {
     return [
       { key: "t", label: "(t)tl", action: TOGGLE_TTL_ACTION },
+      { key: "p", label: "(p)rogress bar / text", action: TOGGLE_TEXT_ACTION },
+      { key: "b", label: "(b)ar style", action: "cycle-bar-style" },
       getSymbolKeybind()
     ];
   }
@@ -43233,4 +43272,4 @@ function renderStatusLine(widgets, settings, context, preRenderedWidgets, preCal
   return statusLine;
 }
 
-export { source_default, string, number, object, looseObject, union, preprocess, stripAnsi, GRADIENT_PRESET_NAMES, stripOscCodes, getVisibleText, getVisibleWidth, truncateStyledText, COLOR_MAP, updateColorMap, getChalkColor, applyColors, getColorDisplayName, getAvailableColorsForUI, getAvailableBackgroundColorsForUI, getBackgroundColorsForPowerline, getPowerlineThemes, getPowerlineTheme, getDefaultPowerlineTheme, prefetchClaudeStatusIfNeeded, ZERO_COMPACTION_STATS, getColorLevelString, NUMBER_KINDS, DefaultPaddingSideSchema, generateGuid, getPackageVersion, getTerminalWidth, canDetectTerminalWidth, getMatchSegments, EDIT_HIDE_STATES_ACTION, MERGE_TARGET_HIDDEN_HIDEABLE_STATE, getEnabledHideStates, setEnabledHideStates, getHideKeybind, getHideModifierText, require_react, Box_default, Text, render_default, Transform, use_input_default, use_app_default, shouldInsertInput, require_jsx_runtime, GIT_REVIEW_REFRESH_FLAG, refreshGitReviewCacheFromCli, CYCLE_NUMBER_STYLE_ACTION, getNumberFormatKeybind, getNumberFormatModifierText, getNextNumberStyle, cycleNumberStyle, buildConfigWarningBadge, countPowerlineStartCapSlots, preRenderAllWidgets, calculateMaxWidthsFromPreRendered, renderStatusLineWithInfo, renderStatusLine, CCSTATUSLINE_COMMANDS, PINNED_INSTALL_COMMANDS, isKnownCommand, getClaudeSettingsPath, loadClaudeSettings, saveClaudeSettings, isInstalled, getPackageCommandAvailability, isClaudeCodeVersionAtLeast, buildStatusLineCommand, classifyInstallation, installStatusLine, uninstallStatusLine, getExistingStatusLine, getRefreshInterval, setRefreshInterval, setUsageField, WEEKLY_MODEL_USAGE_BUCKETS, fetchUsageData, getTranscriptAnalysis, getWidgetSpeedWindowSeconds, isWidgetSpeedWindowEnabled, getWidget, getWidgetCatalog, getWidgetCatalogCategories, filterWidgetCatalog, getConfigLoadError, initConfigPath, getConfigPath, isCustomConfigPath, loadSettings, saveSettings, exportConfig, validateImportFile, applyImport, saveInstallationMetadata };
+export { source_default, string, number, boolean, object, looseObject, union, preprocess, stripAnsi, GRADIENT_PRESET_NAMES, stripOscCodes, getVisibleText, getVisibleWidth, truncateStyledText, COLOR_MAP, updateColorMap, getChalkColor, applyColors, getColorDisplayName, getAvailableColorsForUI, getAvailableBackgroundColorsForUI, getBackgroundColorsForPowerline, getPowerlineThemes, getPowerlineTheme, getDefaultPowerlineTheme, prefetchClaudeStatusIfNeeded, ZERO_COMPACTION_STATS, getColorLevelString, NUMBER_KINDS, DefaultPaddingSideSchema, generateGuid, getPackageVersion, getTerminalWidth, canDetectTerminalWidth, getMatchSegments, EDIT_HIDE_STATES_ACTION, MERGE_TARGET_HIDDEN_HIDEABLE_STATE, getEnabledHideStates, setEnabledHideStates, getHideKeybind, getHideModifierText, require_react, Box_default, Text, render_default, Transform, use_input_default, use_app_default, shouldInsertInput, require_jsx_runtime, GIT_REVIEW_REFRESH_FLAG, refreshGitReviewCacheFromCli, CYCLE_NUMBER_STYLE_ACTION, getNumberFormatKeybind, getNumberFormatModifierText, getNextNumberStyle, cycleNumberStyle, buildConfigWarningBadge, countPowerlineStartCapSlots, preRenderAllWidgets, calculateMaxWidthsFromPreRendered, renderStatusLineWithInfo, renderStatusLine, CCSTATUSLINE_COMMANDS, PINNED_INSTALL_COMMANDS, isKnownCommand, getClaudeSettingsPath, loadClaudeSettings, saveClaudeSettings, isInstalled, getPackageCommandAvailability, isClaudeCodeVersionAtLeast, buildStatusLineCommand, classifyInstallation, installStatusLine, uninstallStatusLine, getExistingStatusLine, getRefreshInterval, setRefreshInterval, setUsageField, WEEKLY_MODEL_USAGE_BUCKETS, fetchUsageData, getTranscriptAnalysis, getWidgetSpeedWindowSeconds, isWidgetSpeedWindowEnabled, getWidget, getWidgetCatalog, getWidgetCatalogCategories, filterWidgetCatalog, getConfigLoadError, initConfigPath, getConfigPath, isCustomConfigPath, loadSettings, saveSettings, exportConfig, validateImportFile, applyImport, saveInstallationMetadata };
