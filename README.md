@@ -516,6 +516,19 @@ For pinned installs, launch the TUI with `npx -y ccstatusline@latest` or `bunx -
 
 </details>
 
+## 🧩 Fork layout template
+
+`configTemplates/fsx-fork.json` is the author's layout (model pill, ctx, cache, 5h and 7d bars, git, cost, skills). It uses widgets that only exist in this fork.
+
+1. Clone this fork to `~/repos/ccstatusline` (`dist/` is committed, so no build is needed).
+2. Copy the template to `~/.config/ccstatusline/settings.json`.
+3. Add to `~/.claude/settings.json`:
+   ```json
+   "statusLine": {"type": "command", "command": "node $HOME/repos/ccstatusline/dist/ccstatusline.js", "padding": 0, "refreshInterval": 60}
+   ```
+
+Needs a Nerd Font for the pill caps. The `5h` and `7d` bars need rate-limit data from Claude Code, and the cache bar's real expiry needs v2.1.251+.
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
